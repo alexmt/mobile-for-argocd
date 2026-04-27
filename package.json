@@ -1,0 +1,38 @@
+{
+  "name": "mobile-for-argocd",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "web": "expo start --web",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"**/*.{ts,tsx,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json}\""
+  },
+  "dependencies": {
+    "expo": "~55.0.8",
+    "expo-constants": "~55.0.9",
+    "expo-linking": "~55.0.9",
+    "expo-router": "~55.0.8",
+    "expo-status-bar": "~55.0.4",
+    "react": "19.2.0",
+    "react-dom": "^19.2.0",
+    "react-native": "0.83.2",
+    "react-native-reanimated": "3.19.5",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.23.0",
+    "babel-preset-expo": "~55.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "eslint": "^9.39.4",
+    "eslint-config-expo": "^55.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
