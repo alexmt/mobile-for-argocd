@@ -124,11 +124,7 @@ function NodeRow({
           <View style={styles.childBadge}>
             <Text style={styles.childBadgeText}>{childCount}</Text>
           </View>
-          <Ionicons
-            name="chevron-forward"
-            size={16}
-            color={colors.muted}
-          />
+          <Ionicons name="chevron-forward" size={16} color={colors.muted} />
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -261,9 +257,7 @@ export function ResourceTreeSheet({
             data={current.nodes}
             keyExtractor={nodeKey}
             renderItem={({ item, index }) => {
-              const children = item.uid
-                ? (childMap.get(item.uid) ?? [])
-                : [];
+              const children = item.uid ? (childMap.get(item.uid) ?? []) : [];
               return (
                 <NodeRow
                   node={item}

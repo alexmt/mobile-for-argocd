@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -114,7 +120,10 @@ function tokenizeValue(text: string): Tok[] {
 
   const nullM = text.match(/^(null|~)(\s*)$/i);
   if (nullM)
-    return [{ type: "null", text: nullM[1] }, { type: "plain", text: nullM[2] }];
+    return [
+      { type: "null", text: nullM[1] },
+      { type: "plain", text: nullM[2] },
+    ];
 
   const boolM = text.match(/^(true|false|yes|no)(\s*)$/i);
   if (boolM)
@@ -153,8 +162,7 @@ function tokenizeLine(line: string): Tok[] {
 
   if (rest.startsWith("---") || rest.startsWith("..."))
     return [...out, { type: "operator", text: rest }];
-  if (rest.startsWith("#"))
-    return [...out, { type: "comment", text: rest }];
+  if (rest.startsWith("#")) return [...out, { type: "comment", text: rest }];
 
   // list item marker
   const listM = rest.match(/^(-\s+)/);
@@ -250,15 +258,33 @@ function buildDiffLines(oldY: string, newY: string): DiffLine[] {
       // skip all
     } else if (isFirst) {
       if (run.length > CONTEXT_LINES)
-        result.push({ type: "collapse", content: "", lineNoOld: null, lineNoNew: null, collapseCount: run.length - CONTEXT_LINES });
+        result.push({
+          type: "collapse",
+          content: "",
+          lineNoOld: null,
+          lineNoNew: null,
+          collapseCount: run.length - CONTEXT_LINES,
+        });
       result.push(...run.slice(-CONTEXT_LINES));
     } else if (isLast) {
       result.push(...run.slice(0, CONTEXT_LINES));
       if (run.length > CONTEXT_LINES)
-        result.push({ type: "collapse", content: "", lineNoOld: null, lineNoNew: null, collapseCount: run.length - CONTEXT_LINES });
+        result.push({
+          type: "collapse",
+          content: "",
+          lineNoOld: null,
+          lineNoNew: null,
+          collapseCount: run.length - CONTEXT_LINES,
+        });
     } else if (run.length > CONTEXT_LINES * 2) {
       result.push(...run.slice(0, CONTEXT_LINES));
-      result.push({ type: "collapse", content: "", lineNoOld: null, lineNoNew: null, collapseCount: run.length - CONTEXT_LINES * 2 });
+      result.push({
+        type: "collapse",
+        content: "",
+        lineNoOld: null,
+        lineNoNew: null,
+        collapseCount: run.length - CONTEXT_LINES * 2,
+      });
       result.push(...run.slice(-CONTEXT_LINES));
     } else {
       result.push(...run);
@@ -300,27 +326,45 @@ function DiffLineRow({ line }: { line: DiffLine }) {
 
 function kindIcon(kind: string): IoniconName {
   switch (kind.toLowerCase()) {
-    case "pod": return "ellipse-outline";
-    case "service": return "git-branch-outline";
-    case "deployment": return "layers-outline";
-    case "replicaset": return "copy-outline";
-    case "statefulset": return "server-outline";
-    case "daemonset": return "git-network-outline";
-    case "job": return "time-outline";
-    case "cronjob": return "calendar-outline";
-    case "configmap": return "document-outline";
-    case "secret": return "key-outline";
-    case "ingress": return "globe-outline";
-    case "serviceaccount": return "person-outline";
-    case "persistentvolumeclaim": return "save-outline";
-    default: return "cube-outline";
+    case "pod":
+      return "ellipse-outline";
+    case "service":
+      return "git-branch-outline";
+    case "deployment":
+      return "layers-outline";
+    case "replicaset":
+      return "copy-outline";
+    case "statefulset":
+      return "server-outline";
+    case "daemonset":
+      return "git-network-outline";
+    case "job":
+      return "time-outline";
+    case "cronjob":
+      return "calendar-outline";
+    case "configmap":
+      return "document-outline";
+    case "secret":
+      return "key-outline";
+    case "ingress":
+      return "globe-outline";
+    case "serviceaccount":
+      return "person-outline";
+    case "persistentvolumeclaim":
+      return "save-outline";
+    default:
+      return "cube-outline";
   }
 }
 
 function stateToYaml(raw: string | undefined | null): string {
   if (!raw) return "";
   try {
-    return jsYaml.dump(JSON.parse(raw) as object, { indent: 2, lineWidth: -1, noRefs: true });
+    return jsYaml.dump(JSON.parse(raw) as object, {
+      indent: 2,
+      lineWidth: -1,
+      noRefs: true,
+    });
   } catch {
     return raw;
   }
@@ -364,7 +408,11 @@ function timeAgo(iso?: string): string {
 const LOG_ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]/g;
 const MAX_LOG_LINES = 5_000;
 
-interface LogLine { id: number; content: string; ts: string }
+interface LogLine {
+  id: number;
+  content: string;
+  ts: string;
+}
 
 function stripAnsiLog(s: string): string {
   return s.replace(LOG_ANSI_RE, "");
@@ -374,13 +422,17 @@ function extractContainersFromSpec(spec: unknown): string[] {
   const s = spec as {
     containers?: { name: string }[];
     initContainers?: { name: string }[];
-    template?: { spec?: { containers?: { name: string }[]; initContainers?: { name: string }[] } };
+    template?: {
+      spec?: {
+        containers?: { name: string }[];
+        initContainers?: { name: string }[];
+      };
+    };
   };
   const ps = s?.template?.spec ?? s;
-  return [
-    ...(ps?.containers ?? []),
-    ...(ps?.initContainers ?? []),
-  ].map((c) => (c as { name: string }).name).filter(Boolean);
+  return [...(ps?.containers ?? []), ...(ps?.initContainers ?? [])]
+    .map((c) => (c as { name: string }).name)
+    .filter(Boolean);
 }
 
 const LogLineRow = React.memo(function LogLineRow({
@@ -395,23 +447,42 @@ const LogLineRow = React.memo(function LogLineRow({
   return (
     <View style={logTabStyles.logRow}>
       {showTs && !!line.ts && (
-        <Text style={logTabStyles.logTs} numberOfLines={1}>{line.ts} </Text>
+        <Text style={logTabStyles.logTs} numberOfLines={1}>
+          {line.ts}{" "}
+        </Text>
       )}
-      <Text style={logTabStyles.logContent} numberOfLines={wrap ? undefined : 1} selectable>
+      <Text
+        style={logTabStyles.logContent}
+        numberOfLines={wrap ? undefined : 1}
+        selectable
+      >
         {line.content}
       </Text>
     </View>
   );
 });
 
-function LogToggle({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function LogToggle({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
       style={[logTabStyles.toggle, active && logTabStyles.toggleActive]}
     >
-      <Text style={[logTabStyles.toggleText, active && logTabStyles.toggleTextActive]}>
+      <Text
+        style={[
+          logTabStyles.toggleText,
+          active && logTabStyles.toggleTextActive,
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -420,11 +491,26 @@ function LogToggle({ label, active, onPress }: { label: string; active: boolean;
 
 // ── Sub-components ─────────────────────────────────────────────
 
-function MetaRow({ label, value, mono, last }: { label: string; value: string; mono?: boolean; last?: boolean }) {
+function MetaRow({
+  label,
+  value,
+  mono,
+  last,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  last?: boolean;
+}) {
   return (
     <View style={[styles.metaRow, !last && styles.metaRowBorder]}>
       <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={[styles.metaValue, mono && styles.metaMono]} numberOfLines={2}>{value || "—"}</Text>
+      <Text
+        style={[styles.metaValue, mono && styles.metaMono]}
+        numberOfLines={2}
+      >
+        {value || "—"}
+      </Text>
     </View>
   );
 }
@@ -446,7 +532,12 @@ function SummaryContent({ resource }: { resource: ResourceDetailRef }) {
           <Text style={styles.sectionHeader}>INFO</Text>
           <View style={styles.card}>
             {resource.info.map((f, i) => (
-              <MetaRow key={f.name} label={f.name} value={f.value} last={i === resource.info!.length - 1} />
+              <MetaRow
+                key={f.name}
+                label={f.name}
+                value={f.value}
+                last={i === resource.info!.length - 1}
+              />
             ))}
           </View>
         </>
@@ -457,7 +548,9 @@ function SummaryContent({ resource }: { resource: ResourceDetailRef }) {
           <Text style={styles.sectionHeader}>HEALTH MESSAGE</Text>
           <View style={styles.card}>
             <View style={styles.metaRow}>
-              <Text style={[styles.metaValue, styles.messageText]}>{resource.health.message}</Text>
+              <Text style={[styles.metaValue, styles.messageText]}>
+                {resource.health.message}
+              </Text>
             </View>
           </View>
         </>
@@ -468,8 +561,19 @@ function SummaryContent({ resource }: { resource: ResourceDetailRef }) {
           <Text style={styles.sectionHeader}>IMAGES</Text>
           <View style={styles.card}>
             {resource.images.map((img, i) => (
-              <View key={img} style={[styles.metaRow, i < resource.images!.length - 1 && styles.metaRowBorder]}>
-                <Text style={[styles.metaValue, styles.metaMono]} numberOfLines={2}>{img}</Text>
+              <View
+                key={img}
+                style={[
+                  styles.metaRow,
+                  i < resource.images!.length - 1 && styles.metaRowBorder,
+                ]}
+              >
+                <Text
+                  style={[styles.metaValue, styles.metaMono]}
+                  numberOfLines={2}
+                >
+                  {img}
+                </Text>
               </View>
             ))}
           </View>
@@ -528,7 +632,9 @@ function DiffContent({ managed }: { managed: ManagedResource }) {
     <View>
       <View style={styles.diffStat}>
         <Text style={[styles.diffCount, { color: ADD_COLOR }]}>+{adds}</Text>
-        <Text style={[styles.diffCount, { color: REMOVE_COLOR }]}>−{removes}</Text>
+        <Text style={[styles.diffCount, { color: REMOVE_COLOR }]}>
+          −{removes}
+        </Text>
       </View>
       <View style={styles.diffBlock}>
         {lines.map((line, i) => (
@@ -539,14 +645,24 @@ function DiffContent({ managed }: { managed: ManagedResource }) {
   );
 }
 
-function StateBlock({ loading, message }: { loading?: boolean; message?: string }) {
+function StateBlock({
+  loading,
+  message,
+}: {
+  loading?: boolean;
+  message?: string;
+}) {
   return (
     <View style={styles.stateBlock}>
       {loading ? (
         <ActivityIndicator color={colors.orange} />
       ) : (
         <>
-          <Ionicons name="alert-circle-outline" size={24} color={colors.muted} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={24}
+            color={colors.muted}
+          />
           <Text style={styles.stateText}>{message}</Text>
         </>
       )}
@@ -626,7 +742,9 @@ function LogsTabContent({
       const batch = bufferRef.current.splice(0);
       setLines((prev) => {
         const next = [...prev, ...batch];
-        return next.length > MAX_LOG_LINES ? next.slice(next.length - MAX_LOG_LINES) : next;
+        return next.length > MAX_LOG_LINES
+          ? next.slice(next.length - MAX_LOG_LINES)
+          : next;
       });
     }, 100);
     return () => clearInterval(timer);
@@ -668,30 +786,48 @@ function LogsTabContent({
           ts: entry.timeStampStr ?? "",
         });
       },
-      (err: Error) => { setStreaming(false); setError(err.message); },
+      (err: Error) => {
+        setStreaming(false);
+        setError(err.message);
+      },
       () => setStreaming(false),
     );
     cleanupRef.current = cleanup;
-  }, [appName, appNamespace, resource, container, follow, previous, isPod, client]);
+  }, [
+    appName,
+    appNamespace,
+    resource,
+    container,
+    follow,
+    previous,
+    isPod,
+    client,
+  ]);
 
   useEffect(() => {
     if (!container) return;
     startStream();
-    return () => { cleanupRef.current?.(); };
+    return () => {
+      cleanupRef.current?.();
+    };
   }, [container, follow, previous]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleScroll = useCallback((e: {
-    nativeEvent: {
-      contentOffset: { y: number };
-      contentSize: { height: number };
-      layoutMeasurement: { height: number };
-    };
-  }) => {
-    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-    const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    autoScrollRef.current = dist < 80;
-    setShowScrollBtn(dist >= 80 && streaming);
-  }, [streaming]);
+  const handleScroll = useCallback(
+    (e: {
+      nativeEvent: {
+        contentOffset: { y: number };
+        contentSize: { height: number };
+        layoutMeasurement: { height: number };
+      };
+    }) => {
+      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+      const dist =
+        contentSize.height - layoutMeasurement.height - contentOffset.y;
+      autoScrollRef.current = dist < 80;
+      setShowScrollBtn(dist >= 80 && streaming);
+    },
+    [streaming],
+  );
 
   const scrollToBottom = useCallback(() => {
     autoScrollRef.current = true;
@@ -713,10 +849,18 @@ function LogsTabContent({
             <TouchableOpacity
               key={c}
               onPress={() => setContainer(c)}
-              style={[logTabStyles.pill, c === container && logTabStyles.pillActive]}
+              style={[
+                logTabStyles.pill,
+                c === container && logTabStyles.pillActive,
+              ]}
               activeOpacity={0.7}
             >
-              <Text style={[logTabStyles.pillText, c === container && logTabStyles.pillTextActive]}>
+              <Text
+                style={[
+                  logTabStyles.pillText,
+                  c === container && logTabStyles.pillTextActive,
+                ]}
+              >
                 {c}
               </Text>
             </TouchableOpacity>
@@ -725,11 +869,31 @@ function LogsTabContent({
       )}
 
       <View style={logTabStyles.controls}>
-        <LogToggle label="Follow" active={follow} onPress={() => setFollow((v) => !v)} />
-        <LogToggle label="TS" active={showTs} onPress={() => setShowTs((v) => !v)} />
-        <LogToggle label="Wrap" active={wrap} onPress={() => setWrap((v) => !v)} />
-        <LogToggle label="Prev" active={previous} onPress={() => setPrevious((v) => !v)} />
-        <TouchableOpacity onPress={startStream} style={logTabStyles.iconBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+        <LogToggle
+          label="Follow"
+          active={follow}
+          onPress={() => setFollow((v) => !v)}
+        />
+        <LogToggle
+          label="TS"
+          active={showTs}
+          onPress={() => setShowTs((v) => !v)}
+        />
+        <LogToggle
+          label="Wrap"
+          active={wrap}
+          onPress={() => setWrap((v) => !v)}
+        />
+        <LogToggle
+          label="Prev"
+          active={previous}
+          onPress={() => setPrevious((v) => !v)}
+        />
+        <TouchableOpacity
+          onPress={startStream}
+          style={logTabStyles.iconBtn}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
           <Ionicons name="reload" size={14} color={colors.muted} />
         </TouchableOpacity>
         <TouchableOpacity
@@ -769,9 +933,16 @@ function LogsTabContent({
       <View style={logTabStyles.logArea}>
         {error ? (
           <View style={logTabStyles.centerState}>
-            <Ionicons name="alert-circle-outline" size={24} color={colors.muted} />
+            <Ionicons
+              name="alert-circle-outline"
+              size={24}
+              color={colors.muted}
+            />
             <Text style={logTabStyles.stateText}>{error}</Text>
-            <TouchableOpacity onPress={startStream} style={logTabStyles.retryBtn}>
+            <TouchableOpacity
+              onPress={startStream}
+              style={logTabStyles.retryBtn}
+            >
               <Text style={logTabStyles.retryText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -802,7 +973,11 @@ function LogsTabContent({
           />
         )}
         {showScrollBtn && (
-          <TouchableOpacity onPress={scrollToBottom} style={logTabStyles.scrollFab} activeOpacity={0.8}>
+          <TouchableOpacity
+            onPress={scrollToBottom}
+            style={logTabStyles.scrollFab}
+            activeOpacity={0.8}
+          >
             <Ionicons name="arrow-down" size={16} color="#fff" />
           </TouchableOpacity>
         )}
@@ -816,7 +991,9 @@ function LogsTabContent({
               <Text style={logTabStyles.statusText}>Live</Text>
             </>
           ) : error ? (
-            <Text style={[logTabStyles.statusText, { color: colors.danger }]}>Error</Text>
+            <Text style={[logTabStyles.statusText, { color: colors.danger }]}>
+              Error
+            </Text>
           ) : (
             <Text style={logTabStyles.statusText}>Done</Text>
           )}
@@ -826,7 +1003,9 @@ function LogsTabContent({
             ? `${filteredLines.length} / ${lines.length} lines`
             : `${lines.length} lines`}
         </Text>
-        {!!container && <Text style={logTabStyles.containerLabel}>{container}</Text>}
+        {!!container && (
+          <Text style={logTabStyles.containerLabel}>{container}</Text>
+        )}
       </View>
     </View>
   );
@@ -1400,7 +1579,6 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: "center",
   },
-
 });
 
 // ── Log tab styles ─────────────────────────────────────────────

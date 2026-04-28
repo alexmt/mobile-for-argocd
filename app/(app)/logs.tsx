@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -43,10 +49,9 @@ function extractContainers(spec: object): string[] {
     containers?: { name: string }[];
     initContainers?: { name: string }[];
   };
-  return [
-    ...(s.containers ?? []),
-    ...(s.initContainers ?? []),
-  ].map((c) => c.name).filter(Boolean);
+  return [...(s.containers ?? []), ...(s.initContainers ?? [])]
+    .map((c) => c.name)
+    .filter(Boolean);
 }
 
 // ── LogLine row ────────────────────────────────────────────────
@@ -63,7 +68,9 @@ const LogLineRow = React.memo(function LogLineRow({
   return (
     <View style={styles.row}>
       {showTs && !!line.ts && (
-        <Text style={styles.ts} numberOfLines={1}>{line.ts} </Text>
+        <Text style={styles.ts} numberOfLines={1}>
+          {line.ts}{" "}
+        </Text>
       )}
       <Text
         style={styles.content}
@@ -197,7 +204,9 @@ export default function LogsScreen() {
       const batch = bufferRef.current.splice(0, bufferRef.current.length);
       setLines((prev) => {
         const next = [...prev, ...batch];
-        return next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next;
+        return next.length > MAX_LINES
+          ? next.slice(next.length - MAX_LINES)
+          : next;
       });
     }, 100);
     return () => clearInterval(timer);
@@ -275,24 +284,29 @@ export default function LogsScreen() {
   useEffect(() => {
     if (hasPod && !container) return;
     startStream();
-    return () => { cleanupRef.current?.(); };
+    return () => {
+      cleanupRef.current?.();
+    };
   }, [container, follow, previous, tail]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Scroll tracking ────────────────────────────────────────
 
-  const handleScroll = useCallback((event: any) => {
-    const { contentOffset, contentSize, layoutMeasurement } =
-      event.nativeEvent as {
-        contentOffset: { y: number };
-        contentSize: { height: number };
-        layoutMeasurement: { height: number };
-      };
-    const distFromBottom =
-      contentSize.height - layoutMeasurement.height - contentOffset.y;
-    const nearBottom = distFromBottom < 80;
-    autoScrollRef.current = nearBottom;
-    setShowScrollBtn(!nearBottom && streaming);
-  }, [streaming]);
+  const handleScroll = useCallback(
+    (event: any) => {
+      const { contentOffset, contentSize, layoutMeasurement } =
+        event.nativeEvent as {
+          contentOffset: { y: number };
+          contentSize: { height: number };
+          layoutMeasurement: { height: number };
+        };
+      const distFromBottom =
+        contentSize.height - layoutMeasurement.height - contentOffset.y;
+      const nearBottom = distFromBottom < 80;
+      autoScrollRef.current = nearBottom;
+      setShowScrollBtn(!nearBottom && streaming);
+    },
+    [streaming],
+  );
 
   const scrollToBottom = useCallback(() => {
     autoScrollRef.current = true;
@@ -370,8 +384,16 @@ export default function LogsScreen() {
 
       {/* Controls */}
       <View style={styles.controls}>
-        <Toggle label="Follow" active={follow} onPress={() => setFollow((v) => !v)} />
-        <Toggle label="Timestamps" active={showTs} onPress={() => setShowTs((v) => !v)} />
+        <Toggle
+          label="Follow"
+          active={follow}
+          onPress={() => setFollow((v) => !v)}
+        />
+        <Toggle
+          label="Timestamps"
+          active={showTs}
+          onPress={() => setShowTs((v) => !v)}
+        />
         <Toggle label="Wrap" active={wrap} onPress={() => setWrap((v) => !v)} />
         <Toggle
           label="Previous"
@@ -413,7 +435,11 @@ export default function LogsScreen() {
       <View style={styles.logContainer}>
         {error ? (
           <View style={styles.centerState}>
-            <Ionicons name="alert-circle-outline" size={28} color={colors.muted} />
+            <Ionicons
+              name="alert-circle-outline"
+              size={28}
+              color={colors.muted}
+            />
             <Text style={styles.stateText}>{error}</Text>
             <TouchableOpacity onPress={startStream} style={styles.retryBtn}>
               <Text style={styles.retryText}>Retry</Text>
@@ -460,7 +486,9 @@ export default function LogsScreen() {
       </View>
 
       {/* Status bar */}
-      <View style={[styles.statusBar, { paddingBottom: insets.bottom > 0 ? 0 : 8 }]}>
+      <View
+        style={[styles.statusBar, { paddingBottom: insets.bottom > 0 ? 0 : 8 }]}
+      >
         <View style={styles.statusLeft}>
           {streaming ? (
             <>
@@ -468,7 +496,9 @@ export default function LogsScreen() {
               <Text style={styles.statusText}>Live</Text>
             </>
           ) : error ? (
-            <Text style={[styles.statusText, { color: colors.danger }]}>Error</Text>
+            <Text style={[styles.statusText, { color: colors.danger }]}>
+              Error
+            </Text>
           ) : (
             <Text style={styles.statusText}>Done</Text>
           )}

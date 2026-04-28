@@ -274,7 +274,9 @@ function ResourceGroup({
             (n.namespace ?? "") === (r.namespace ?? "") &&
             n.name === r.name,
         );
-        const children = treeNode?.uid ? (childMap.get(treeNode.uid) ?? []) : [];
+        const children = treeNode?.uid
+          ? (childMap.get(treeNode.uid) ?? [])
+          : [];
         return (
           <ResourceRow
             key={`${r.namespace ?? ""}/${r.name}`}
@@ -355,10 +357,7 @@ export default function AppDetailsScreen() {
     enabled: !!app,
   });
 
-  const treeNodes = useMemo(
-    () => treeData?.nodes ?? [],
-    [treeData?.nodes],
-  );
+  const treeNodes = useMemo(() => treeData?.nodes ?? [], [treeData?.nodes]);
 
   const childMap = useMemo(() => {
     const map = new Map<string, ResourceNode[]>();
@@ -691,7 +690,11 @@ export default function AppDetailsScreen() {
                   activeOpacity={0.7}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
-                  <Ionicons name="git-network-outline" size={12} color={colors.orange} />
+                  <Ionicons
+                    name="git-network-outline"
+                    size={12}
+                    color={colors.orange}
+                  />
                   <Text style={styles.treeBtnText}>Tree</Text>
                 </TouchableOpacity>
               }

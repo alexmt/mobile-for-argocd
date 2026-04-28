@@ -328,7 +328,11 @@ export async function getManagedResource(
   namespace: string | undefined,
   resourceName: string,
 ): Promise<ManagedResource | null> {
-  const params = new URLSearchParams({ appNamespace, name: resourceName, kind });
+  const params = new URLSearchParams({
+    appNamespace,
+    name: resourceName,
+    kind,
+  });
   if (namespace) params.set("namespace", namespace);
   if (group) params.set("group", group);
   const res = await fetch(

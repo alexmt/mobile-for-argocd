@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -45,25 +51,42 @@ type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
 function kindIcon(kind: string): IoniconName {
   switch (kind.toLowerCase()) {
-    case "pod": return "ellipse-outline";
-    case "service": return "git-branch-outline";
-    case "deployment": return "layers-outline";
-    case "replicaset": return "copy-outline";
-    case "statefulset": return "server-outline";
-    case "daemonset": return "git-network-outline";
-    case "job": return "time-outline";
-    case "cronjob": return "calendar-outline";
-    case "configmap": return "document-outline";
-    case "secret": return "key-outline";
-    case "ingress": return "globe-outline";
-    case "serviceaccount": return "person-outline";
-    case "persistentvolumeclaim": return "save-outline";
-    default: return "cube-outline";
+    case "pod":
+      return "ellipse-outline";
+    case "service":
+      return "git-branch-outline";
+    case "deployment":
+      return "layers-outline";
+    case "replicaset":
+      return "copy-outline";
+    case "statefulset":
+      return "server-outline";
+    case "daemonset":
+      return "git-network-outline";
+    case "job":
+      return "time-outline";
+    case "cronjob":
+      return "calendar-outline";
+    case "configmap":
+      return "document-outline";
+    case "secret":
+      return "key-outline";
+    case "ingress":
+      return "globe-outline";
+    case "serviceaccount":
+      return "person-outline";
+    case "persistentvolumeclaim":
+      return "save-outline";
+    default:
+      return "cube-outline";
   }
 }
 
 function nodeUid(node: ResourceNode): string {
-  return node.uid ?? `${node.group ?? ""}/${node.kind}/${node.namespace ?? ""}/${node.name}`;
+  return (
+    node.uid ??
+    `${node.group ?? ""}/${node.kind}/${node.namespace ?? ""}/${node.name}`
+  );
 }
 
 function flattenTree(
@@ -76,7 +99,13 @@ function flattenTree(
   for (const node of nodes) {
     const uid = nodeUid(node);
     const children = node.uid ? (childMap.get(node.uid) ?? []) : [];
-    result.push({ uid, node, depth, childCount: children.length, isExpanded: expanded.has(uid) });
+    result.push({
+      uid,
+      node,
+      depth,
+      childCount: children.length,
+      isExpanded: expanded.has(uid),
+    });
     if (expanded.has(uid) && children.length > 0) {
       result.push(...flattenTree(children, childMap, expanded, depth + 1));
     }
@@ -107,7 +136,11 @@ const TreeNodeRow = React.memo(function TreeNodeRow({
       onLongPress={onLongPress}
       delayLongPress={400}
       activeOpacity={0.65}
-      style={[styles.row, !last && styles.rowBorder, { paddingLeft: 12 + depth * INDENT }]}
+      style={[
+        styles.row,
+        !last && styles.rowBorder,
+        { paddingLeft: 12 + depth * INDENT },
+      ]}
     >
       {/* Expand chevron */}
       <View style={styles.chevronWrap}>
@@ -148,9 +181,7 @@ const TreeNodeRow = React.memo(function TreeNodeRow({
       </View>
 
       {/* Child count */}
-      {childCount > 0 && (
-        <Text style={styles.childCount}>{childCount}</Text>
-      )}
+      {childCount > 0 && <Text style={styles.childCount}>{childCount}</Text>}
 
       {/* Health icon */}
       <Ionicons
@@ -174,7 +205,8 @@ export default function TreeScreen() {
     namespace: string;
   }>();
 
-  const [detailResource, setDetailResource] = useState<ResourceDetailRef | null>(null);
+  const [detailResource, setDetailResource] =
+    useState<ResourceDetailRef | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const initializedRef = useRef(false);
 
@@ -196,7 +228,9 @@ export default function TreeScreen() {
         else map.set(ref.uid, [node]);
       }
     }
-    const roots = treeNodes.filter((n) => !n.parentRefs || n.parentRefs.length === 0);
+    const roots = treeNodes.filter(
+      (n) => !n.parentRefs || n.parentRefs.length === 0,
+    );
     return { childMap: map, rootNodes: roots };
   }, [treeNodes]);
 
@@ -291,10 +325,18 @@ export default function TreeScreen() {
           </TouchableOpacity>
 
           <View style={styles.headerBtns}>
-            <TouchableOpacity onPress={expandAll} style={styles.headerBtn} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={expandAll}
+              style={styles.headerBtn}
+              activeOpacity={0.7}
+            >
               <Text style={styles.headerBtnText}>Expand all</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={collapseAll} style={styles.headerBtn} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={collapseAll}
+              style={styles.headerBtn}
+              activeOpacity={0.7}
+            >
               <Text style={styles.headerBtnText}>Collapse</Text>
             </TouchableOpacity>
           </View>
@@ -302,9 +344,12 @@ export default function TreeScreen() {
 
         <View style={styles.headerInfo}>
           <Text style={styles.headerLabel}>Resource tree</Text>
-          <Text style={styles.headerAppName} numberOfLines={1}>{name}</Text>
+          <Text style={styles.headerAppName} numberOfLines={1}>
+            {name}
+          </Text>
           <Text style={styles.headerHint}>
-            {treeNodes.length} resources · tap to expand · long press for details
+            {treeNodes.length} resources · tap to expand · long press for
+            details
           </Text>
         </View>
       </LinearGradient>
