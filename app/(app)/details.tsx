@@ -464,7 +464,10 @@ export default function AppDetailsScreen() {
                 {
                   icon: "git-compare-outline" as const,
                   label: "Diff",
-                  onPress: undefined,
+                  onPress: () =>
+                    router.push(
+                      `/(app)/diff?name=${encodeURIComponent(name)}&namespace=${encodeURIComponent(namespace)}`,
+                    ),
                   loading: false,
                   disabled: false,
                 },
@@ -486,6 +489,7 @@ export default function AppDetailsScreen() {
             ).map((btn) => (
               <TouchableOpacity
                 key={btn.label}
+                testID={`action-${btn.label.toLowerCase()}`}
                 onPress={btn.onPress}
                 disabled={btn.disabled}
                 activeOpacity={0.7}

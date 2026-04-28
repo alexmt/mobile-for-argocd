@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import {
   getApplication,
+  getManagedResources,
   listApplications,
   refreshApplication,
   syncApplication,
@@ -68,6 +69,10 @@ export class ArgoClient {
       onEvent,
       signal,
     );
+  }
+
+  getManagedResources(name: string, namespace: string) {
+    return getManagedResources(this.serverUrl, this.token, name, namespace);
   }
 
   watchApplications(

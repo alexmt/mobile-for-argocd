@@ -258,6 +258,38 @@ export async function syncApplication(
   }
 }
 
+// ── Managed resources / diff ──────────────────────────────────
+
+export interface ManagedResource {
+  group?: string;
+  version?: string;
+  kind: string;
+  namespace?: string;
+  name: string;
+  targetState?: string;
+  liveState?: string;
+  normalizedLiveState?: string;
+  predictedLiveState?: string;
+  hook?: boolean;
+  requiresPruning?: boolean;
+}
+
+export async function getManagedResources(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+): Promise<ManagedResource[]> {
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}/managed-resources?appNamespace=${encodeURIComponent(namespace)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as { items: ManagedResource[] };
+  return data.items ?? [];
+}
+
 export async function listApplications(
   serverUrl: string,
   token: string,
