@@ -8,10 +8,12 @@ import {
   getResourceTree,
   listApplications,
   refreshApplication,
+  streamLogs,
   syncApplication,
   watchApplication,
   watchApplications,
   type Application,
+  type LogEntry,
   type SyncApplicationOptions,
 } from "./api";
 import { serverStorage, tokenStorage } from "./storage";
@@ -122,6 +124,42 @@ export class ArgoClient {
 
   getResourceTree(name: string, namespace: string) {
     return getResourceTree(this.serverUrl, this.token, name, namespace);
+  }
+
+  streamLogs(
+    appName: string,
+    appNamespace: string,
+    namespace: string,
+    podName: string | undefined,
+    group: string | undefined,
+    kind: string | undefined,
+    resourceName: string | undefined,
+    container: string,
+    tail: number,
+    follow: boolean,
+    previous: boolean,
+    onEntry: (entry: LogEntry) => void,
+    onError: (err: Error) => void,
+    onDone: () => void,
+  ): () => void {
+    return streamLogs(
+      this.serverUrl,
+      this.token,
+      appName,
+      appNamespace,
+      namespace,
+      podName,
+      group,
+      kind,
+      resourceName,
+      container,
+      tail,
+      follow,
+      previous,
+      onEntry,
+      onError,
+      onDone,
+    );
   }
 
   watchApplications(

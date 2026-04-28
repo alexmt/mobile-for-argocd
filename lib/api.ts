@@ -478,6 +478,101 @@ export function watchApplication(
   });
 }
 
+// ── Pod logs ──────────────────────────────────────────────────
+
+export interface LogEntry {
+  content: string;
+  timeStamp?: string;
+  timeStampStr?: string;
+  podName?: string;
+  last?: boolean;
+  first?: boolean;
+}
+
+export function streamLogs(
+  serverUrl: string,
+  token: string,
+  appName: string,
+  appNamespace: string,
+  namespace: string,
+  podName: string | undefined,
+  group: string | undefined,
+  kind: string | undefined,
+  resourceName: string | undefined,
+  container: string,
+  tail: number,
+  follow: boolean,
+  previous: boolean,
+  onEntry: (entry: LogEntry) => void,
+  onError: (err: Error) => void,
+  onDone: () => void,
+): () => void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const RNEventSource = require("react-native-sse")
+    .default as typeof import("react-native-sse").default;
+
+  const params = new URLSearchParams({
+    appNamespace,
+    container,
+    namespace,
+    follow: follow.toString(),
+    tailLines: String(tail),
+    sinceSeconds: "0",
+  });
+  if (podName) {
+    params.set("podName", podName);
+  } else {
+    params.set("group", group ?? "");
+    if (kind) params.set("kind", kind);
+    if (resourceName) params.set("resourceName", resourceName);
+  }
+  if (previous) params.set("previous", "true");
+
+  const url = `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/logs?${params.toString()}`;
+
+  const es = new RNEventSource(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const cleanup = () => es.close();
+
+  es.addEventListener("message", (event) => {
+    if (!event.data) return;
+    try {
+      const parsed = JSON.parse(event.data) as {
+        result?: LogEntry;
+        error?: { message?: string };
+      };
+      if (parsed.error) {
+        cleanup();
+        onError(new Error(parsed.error.message ?? "Log stream error"));
+        return;
+      }
+      if (parsed.result) {
+        if (parsed.result.last) {
+          cleanup();
+          onDone();
+        } else {
+          onEntry(parsed.result);
+        }
+      }
+    } catch {
+      // skip malformed events
+    }
+  });
+
+  es.addEventListener("error", (event) => {
+    cleanup();
+    const msg =
+      "message" in event && event.message
+        ? String(event.message)
+        : "Stream error";
+    onError(new Error(msg));
+  });
+
+  return cleanup;
+}
+
 export function watchApplications(
   serverUrl: string,
   token: string,

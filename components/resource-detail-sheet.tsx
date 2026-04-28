@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  FlatList,
   Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -21,7 +23,7 @@ import { colors } from "../lib/theme";
 import { getHealth, getSync } from "../lib/status";
 import { useArgoClient } from "../lib/client";
 import { queryKeys } from "../lib/query-keys";
-import type { ManagedResource } from "../lib/api";
+import type { LogEntry, ManagedResource } from "../lib/api";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -32,7 +34,16 @@ const ADD_BG = "rgba(78,196,107,0.10)";
 const REMOVE_BG = "rgba(242,118,108,0.10)";
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
-type TabId = "summary" | "live" | "desired" | "diff";
+type TabId = "summary" | "live" | "desired" | "diff" | "logs";
+
+const LOG_KINDS = new Set([
+  "pod",
+  "deployment",
+  "statefulset",
+  "daemonset",
+  "replicaset",
+  "job",
+]);
 
 // ── Public types ───────────────────────────────────────────────
 
@@ -348,6 +359,65 @@ function timeAgo(iso?: string): string {
   return d < 30 ? `${d}d ago` : `${Math.floor(d / 30)}mo ago`;
 }
 
+// ── Log tab helpers ────────────────────────────────────────────
+
+const LOG_ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]/g;
+const MAX_LOG_LINES = 5_000;
+
+interface LogLine { id: number; content: string; ts: string }
+
+function stripAnsiLog(s: string): string {
+  return s.replace(LOG_ANSI_RE, "");
+}
+
+function extractContainersFromSpec(spec: unknown): string[] {
+  const s = spec as {
+    containers?: { name: string }[];
+    initContainers?: { name: string }[];
+    template?: { spec?: { containers?: { name: string }[]; initContainers?: { name: string }[] } };
+  };
+  const ps = s?.template?.spec ?? s;
+  return [
+    ...(ps?.containers ?? []),
+    ...(ps?.initContainers ?? []),
+  ].map((c) => (c as { name: string }).name).filter(Boolean);
+}
+
+const LogLineRow = React.memo(function LogLineRow({
+  line,
+  showTs,
+  wrap,
+}: {
+  line: LogLine;
+  showTs: boolean;
+  wrap: boolean;
+}) {
+  return (
+    <View style={logTabStyles.logRow}>
+      {showTs && !!line.ts && (
+        <Text style={logTabStyles.logTs} numberOfLines={1}>{line.ts} </Text>
+      )}
+      <Text style={logTabStyles.logContent} numberOfLines={wrap ? undefined : 1} selectable>
+        {line.content}
+      </Text>
+    </View>
+  );
+});
+
+function LogToggle({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[logTabStyles.toggle, active && logTabStyles.toggleActive]}
+    >
+      <Text style={[logTabStyles.toggleText, active && logTabStyles.toggleTextActive]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 // ── Sub-components ─────────────────────────────────────────────
 
 function MetaRow({ label, value, mono, last }: { label: string; value: string; mono?: boolean; last?: boolean }) {
@@ -484,6 +554,284 @@ function StateBlock({ loading, message }: { loading?: boolean; message?: string 
   );
 }
 
+// ── Logs tab (inline viewer) ──────────────────────────────────
+
+function LogsTabContent({
+  resource,
+  appName,
+  appNamespace,
+}: {
+  resource: ResourceDetailRef;
+  appName: string;
+  appNamespace: string;
+}) {
+  const client = useArgoClient();
+  const isPod = resource.kind.toLowerCase() === "pod";
+
+  const [follow, setFollow] = useState(true);
+  const [showTs, setShowTs] = useState(false);
+  const [wrap, setWrap] = useState(false);
+  const [previous, setPrevious] = useState(false);
+  const [container, setContainer] = useState("");
+  const [containers, setContainers] = useState<string[]>([]);
+  const [filterText, setFilterText] = useState("");
+  const [showFilter, setShowFilter] = useState(false);
+  const [lines, setLines] = useState<LogLine[]>([]);
+  const [streaming, setStreaming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  const lineIdRef = useRef(0);
+  const bufferRef = useRef<LogLine[]>([]);
+  const cleanupRef = useRef<(() => void) | null>(null);
+  const flatListRef = useRef<FlatList<LogLine>>(null);
+  const autoScrollRef = useRef(true);
+
+  const { data: liveObj } = useQuery({
+    queryKey: queryKeys.resource(
+      client.serverUrl,
+      appNamespace,
+      appName,
+      resource.group,
+      resource.version,
+      resource.kind,
+      resource.namespace,
+      resource.name,
+    ),
+    queryFn: () =>
+      client.getResource(
+        appName,
+        appNamespace,
+        resource.group,
+        resource.version,
+        resource.kind,
+        resource.namespace,
+        resource.name,
+      ),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!liveObj) return;
+    const spec = (liveObj as { spec?: unknown })?.spec;
+    if (!spec) return;
+    const cs = extractContainersFromSpec(spec);
+    setContainers(cs);
+    setContainer((prev) => prev || cs[0] || "");
+  }, [liveObj]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (bufferRef.current.length === 0) return;
+      const batch = bufferRef.current.splice(0);
+      setLines((prev) => {
+        const next = [...prev, ...batch];
+        return next.length > MAX_LOG_LINES ? next.slice(next.length - MAX_LOG_LINES) : next;
+      });
+    }, 100);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (autoScrollRef.current) {
+      flatListRef.current?.scrollToEnd({ animated: false });
+    }
+  }, [lines]);
+
+  const startStream = useCallback(() => {
+    if (!container) return;
+    cleanupRef.current?.();
+    lineIdRef.current = 0;
+    bufferRef.current = [];
+    setLines([]);
+    setStreaming(true);
+    setError(null);
+    autoScrollRef.current = true;
+    setShowScrollBtn(false);
+
+    const cleanup = client.streamLogs(
+      appName,
+      appNamespace,
+      resource.namespace ?? "",
+      isPod ? resource.name : undefined,
+      !isPod ? resource.group : undefined,
+      !isPod ? resource.kind : undefined,
+      !isPod ? resource.name : undefined,
+      container,
+      1000,
+      follow,
+      previous,
+      (entry: LogEntry) => {
+        bufferRef.current.push({
+          id: lineIdRef.current++,
+          content: stripAnsiLog(entry.content ?? ""),
+          ts: entry.timeStampStr ?? "",
+        });
+      },
+      (err: Error) => { setStreaming(false); setError(err.message); },
+      () => setStreaming(false),
+    );
+    cleanupRef.current = cleanup;
+  }, [appName, appNamespace, resource, container, follow, previous, isPod, client]);
+
+  useEffect(() => {
+    if (!container) return;
+    startStream();
+    return () => { cleanupRef.current?.(); };
+  }, [container, follow, previous]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleScroll = useCallback((e: {
+    nativeEvent: {
+      contentOffset: { y: number };
+      contentSize: { height: number };
+      layoutMeasurement: { height: number };
+    };
+  }) => {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    autoScrollRef.current = dist < 80;
+    setShowScrollBtn(dist >= 80 && streaming);
+  }, [streaming]);
+
+  const scrollToBottom = useCallback(() => {
+    autoScrollRef.current = true;
+    setShowScrollBtn(false);
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
+  const filteredLines = useMemo(() => {
+    if (!filterText) return lines;
+    const lower = filterText.toLowerCase();
+    return lines.filter((l) => l.content.toLowerCase().includes(lower));
+  }, [lines, filterText]);
+
+  return (
+    <View style={logTabStyles.root}>
+      {containers.length > 1 && (
+        <View style={logTabStyles.containerBar}>
+          {containers.map((c) => (
+            <TouchableOpacity
+              key={c}
+              onPress={() => setContainer(c)}
+              style={[logTabStyles.pill, c === container && logTabStyles.pillActive]}
+              activeOpacity={0.7}
+            >
+              <Text style={[logTabStyles.pillText, c === container && logTabStyles.pillTextActive]}>
+                {c}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <View style={logTabStyles.controls}>
+        <LogToggle label="Follow" active={follow} onPress={() => setFollow((v) => !v)} />
+        <LogToggle label="TS" active={showTs} onPress={() => setShowTs((v) => !v)} />
+        <LogToggle label="Wrap" active={wrap} onPress={() => setWrap((v) => !v)} />
+        <LogToggle label="Prev" active={previous} onPress={() => setPrevious((v) => !v)} />
+        <TouchableOpacity onPress={startStream} style={logTabStyles.iconBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+          <Ionicons name="reload" size={14} color={colors.muted} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setShowFilter((v) => !v)}
+          style={logTabStyles.iconBtn}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <Ionicons
+            name={showFilter ? "search" : "search-outline"}
+            size={14}
+            color={showFilter ? colors.orange : colors.muted}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {showFilter && (
+        <View style={logTabStyles.filterRow}>
+          <Ionicons name="search" size={13} color={colors.muted} />
+          <TextInput
+            style={logTabStyles.filterInput}
+            value={filterText}
+            onChangeText={setFilterText}
+            placeholder="Filter…"
+            placeholderTextColor={colors.faint}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {!!filterText && (
+            <TouchableOpacity onPress={() => setFilterText("")}>
+              <Ionicons name="close-circle" size={15} color={colors.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      <View style={logTabStyles.logArea}>
+        {error ? (
+          <View style={logTabStyles.centerState}>
+            <Ionicons name="alert-circle-outline" size={24} color={colors.muted} />
+            <Text style={logTabStyles.stateText}>{error}</Text>
+            <TouchableOpacity onPress={startStream} style={logTabStyles.retryBtn}>
+              <Text style={logTabStyles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : lines.length === 0 && !streaming ? (
+          <View style={logTabStyles.centerState}>
+            <Text style={logTabStyles.stateText}>No logs</Text>
+          </View>
+        ) : lines.length === 0 ? (
+          <View style={logTabStyles.centerState}>
+            <ActivityIndicator color={colors.orange} />
+            <Text style={logTabStyles.stateText}>Waiting for logs…</Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={filteredLines}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <LogLineRow line={item} showTs={showTs} wrap={wrap} />
+            )}
+            style={logTabStyles.flatList}
+            showsVerticalScrollIndicator={false}
+            onScroll={handleScroll}
+            scrollEventThrottle={100}
+            removeClippedSubviews
+            maxToRenderPerBatch={40}
+            windowSize={8}
+          />
+        )}
+        {showScrollBtn && (
+          <TouchableOpacity onPress={scrollToBottom} style={logTabStyles.scrollFab} activeOpacity={0.8}>
+            <Ionicons name="arrow-down" size={16} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={logTabStyles.statusBar}>
+        <View style={logTabStyles.statusLeft}>
+          {streaming ? (
+            <>
+              <View style={logTabStyles.liveDot} />
+              <Text style={logTabStyles.statusText}>Live</Text>
+            </>
+          ) : error ? (
+            <Text style={[logTabStyles.statusText, { color: colors.danger }]}>Error</Text>
+          ) : (
+            <Text style={logTabStyles.statusText}>Done</Text>
+          )}
+        </View>
+        <Text style={logTabStyles.lineCount}>
+          {filteredLines.length !== lines.length
+            ? `${filteredLines.length} / ${lines.length} lines`
+            : `${lines.length} lines`}
+        </Text>
+        {!!container && <Text style={logTabStyles.containerLabel}>{container}</Text>}
+      </View>
+    </View>
+  );
+}
+
 // ── ResourceDetailContent ──────────────────────────────────────
 
 export interface ResourceDetailContentProps {
@@ -571,12 +919,14 @@ export function ResourceDetailContent({
     !!managed?.normalizedLiveState &&
     !!managed?.predictedLiveState &&
     managed.normalizedLiveState !== managed.predictedLiveState;
+  const hasLogs = LOG_KINDS.has(resource.kind.toLowerCase());
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "summary", label: "SUMMARY" },
     { id: "live", label: "LIVE" },
     ...(hasDesired ? [{ id: "desired" as TabId, label: "DESIRED" }] : []),
     ...(hasDiff ? [{ id: "diff" as TabId, label: "DIFF" }] : []),
+    ...(hasLogs ? [{ id: "logs" as TabId, label: "LOGS" }] : []),
   ];
 
   const kindGk = [resource.group, resource.kind].filter(Boolean).join("/");
@@ -677,35 +1027,43 @@ export function ResourceDetailContent({
         </ScrollView>
 
         {/* Content */}
-        <ScrollView
-          style={styles.contentScroll}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {activeTab === "summary" && <SummaryContent resource={resource} />}
+        {activeTab === "logs" ? (
+          <LogsTabContent
+            resource={resource}
+            appName={appName}
+            appNamespace={appNamespace}
+          />
+        ) : (
+          <ScrollView
+            style={styles.contentScroll}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {activeTab === "summary" && <SummaryContent resource={resource} />}
 
-          {activeTab === "live" && (
-            <LiveContent
-              state={liveState}
-              isLoading={liveLoading}
-              error={liveError instanceof Error ? liveError : null}
-            />
-          )}
+            {activeTab === "live" && (
+              <LiveContent
+                state={liveState}
+                isLoading={liveLoading}
+                error={liveError instanceof Error ? liveError : null}
+              />
+            )}
 
-          {activeTab === "desired" &&
-            (hasDesired ? (
-              <HighlightedYaml yaml={stateToYaml(managed!.targetState)} />
-            ) : (
-              <StateBlock message="Not managed by ArgoCD" />
-            ))}
+            {activeTab === "desired" &&
+              (hasDesired ? (
+                <HighlightedYaml yaml={stateToYaml(managed!.targetState)} />
+              ) : (
+                <StateBlock message="Not managed by ArgoCD" />
+              ))}
 
-          {activeTab === "diff" &&
-            (hasDiff ? (
-              <DiffContent managed={managed!} />
-            ) : (
-              <StateBlock message="No diff available" />
-            ))}
-        </ScrollView>
+            {activeTab === "diff" &&
+              (hasDiff ? (
+                <DiffContent managed={managed!} />
+              ) : (
+                <StateBlock message="No diff available" />
+              ))}
+          </ScrollView>
+        )}
       </View>
     </View>
   );
@@ -1041,5 +1399,198 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.muted,
     textAlign: "center",
+  },
+
+});
+
+// ── Log tab styles ─────────────────────────────────────────────
+
+const logTabStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#0d1119",
+  },
+  containerBar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+    backgroundColor: "#171B33",
+  },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  pillActive: {
+    backgroundColor: "rgba(239,123,77,0.18)",
+    borderColor: colors.orange,
+  },
+  pillText: {
+    fontSize: 11,
+    fontFamily: MONO,
+    color: colors.muted,
+  },
+  pillTextActive: {
+    color: colors.orange,
+    fontWeight: "600",
+  },
+  controls: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+    backgroundColor: "#171B33",
+  },
+  toggle: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 7,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  toggleActive: {
+    backgroundColor: "rgba(239,123,77,0.15)",
+    borderColor: colors.orange,
+  },
+  toggleText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+  },
+  toggleTextActive: {
+    color: colors.orange,
+  },
+  iconBtn: {
+    padding: 5,
+    marginLeft: "auto" as unknown as number,
+  },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+    backgroundColor: "rgba(255,255,255,0.02)",
+  },
+  filterInput: {
+    flex: 1,
+    fontSize: 12,
+    color: colors.text,
+    fontFamily: MONO,
+    paddingVertical: 0,
+  },
+  logArea: {
+    flex: 1,
+    position: "relative",
+  },
+  flatList: {
+    flex: 1,
+  },
+  logRow: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingVertical: 1,
+  },
+  logTs: {
+    fontSize: 10,
+    fontFamily: MONO,
+    color: "rgba(245,246,250,0.35)",
+    flexShrink: 0,
+  },
+  logContent: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: MONO,
+    color: "#d6dae0",
+    lineHeight: 17,
+  },
+  scrollFab: {
+    position: "absolute",
+    right: 14,
+    bottom: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.orange,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+  },
+  statusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    backgroundColor: "#171B33",
+    gap: 8,
+  },
+  statusLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  liveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.success,
+  },
+  statusText: {
+    fontSize: 11,
+    color: colors.muted,
+    fontWeight: "600",
+  },
+  lineCount: {
+    flex: 1,
+    fontSize: 11,
+    color: colors.faint,
+    textAlign: "center",
+  },
+  containerLabel: {
+    fontSize: 10,
+    color: colors.faint,
+    fontFamily: MONO,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    minHeight: 200,
+  },
+  stateText: {
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: "center",
+    paddingHorizontal: 24,
+  },
+  retryBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "rgba(239,123,77,0.15)",
+    borderWidth: 1,
+    borderColor: colors.orange,
+  },
+  retryText: {
+    fontSize: 13,
+    color: colors.orange,
+    fontWeight: "600",
   },
 });
