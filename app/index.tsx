@@ -1,10 +1,5 @@
-import { View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Redirect } from 'expo-router';
 
-export default function HomeScreen() {
-  return (
-    <View style={{ flex: 1 }}>
-      <StatusBar style="auto" />
-    </View>
-  );
+export default function Index() {
+  return <Redirect href="/login" />;
 }
