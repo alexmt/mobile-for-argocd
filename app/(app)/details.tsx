@@ -18,11 +18,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { colors } from "../../lib/theme";
-import { appSource, type Application } from "../../lib/api";
+import { appSource, type Application, type ResourceNode } from "../../lib/api";
 import { useArgoClient } from "../../lib/client";
 import { queryKeys } from "../../lib/query-keys";
 import { getHealth, getOperationPhase, getSync } from "../../lib/status";
 import { SyncSheet } from "../../components/sync-sheet";
+import { ResourceTreeSheet } from "../../components/resource-tree-sheet";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -151,10 +152,14 @@ type ResourceItem = NonNullable<Application["status"]["resources"]>[number];
 function ResourceRow({
   resource,
   appNamespace,
+  childCount = 0,
+  onDrillDown,
   last,
 }: {
   resource: ResourceItem;
   appNamespace: string;
+  childCount?: number;
+  onDrillDown?: () => void;
   last?: boolean;
 }) {
   const health = getHealth(resource.health?.status ?? "Unknown");
@@ -190,6 +195,19 @@ function ResourceRow({
           />
         )}
       </View>
+      {childCount > 0 && (
+        <TouchableOpacity
+          onPress={onDrillDown}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.resourceDrillBtn}
+        >
+          <View style={styles.resourceChildBadge}>
+            <Text style={styles.resourceChildBadgeText}>{childCount}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -212,11 +230,17 @@ function ResourceGroup({
   kind,
   items,
   appNamespace,
+  treeNodes,
+  childMap,
+  onDrillDown,
 }: {
   group: string | undefined;
   kind: string;
   items: ResourceItem[];
   appNamespace: string;
+  treeNodes: ResourceNode[];
+  childMap: Map<string, ResourceNode[]>;
+  onDrillDown: (node: ResourceNode) => void;
 }) {
   return (
     <View style={styles.resourceGroup}>
@@ -225,14 +249,26 @@ function ResourceGroup({
         <Text style={styles.resourceGroupKind}>{kindLabel(group, kind)}</Text>
         <Text style={styles.resourceGroupCount}>{items.length}</Text>
       </View>
-      {items.map((r, i) => (
-        <ResourceRow
-          key={`${r.namespace ?? ""}/${r.name}`}
-          resource={r}
-          appNamespace={appNamespace}
-          last={i === items.length - 1}
-        />
-      ))}
+      {items.map((r, i) => {
+        const treeNode = treeNodes.find(
+          (n) =>
+            (n.group ?? "") === (r.group ?? "") &&
+            n.kind === r.kind &&
+            (n.namespace ?? "") === (r.namespace ?? "") &&
+            n.name === r.name,
+        );
+        const children = treeNode?.uid ? (childMap.get(treeNode.uid) ?? []) : [];
+        return (
+          <ResourceRow
+            key={`${r.namespace ?? ""}/${r.name}`}
+            resource={r}
+            appNamespace={appNamespace}
+            childCount={children.length}
+            onDrillDown={treeNode ? () => onDrillDown(treeNode) : undefined}
+            last={i === items.length - 1}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -264,6 +300,10 @@ export default function AppDetailsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const queryKey = queryKeys.application(client.serverUrl, namespace, name);
+  const [treeSheet, setTreeSheet] = useState<{
+    title: string;
+    nodes: ResourceNode[];
+  } | null>(null);
 
   const {
     data: app,
@@ -274,6 +314,34 @@ export default function AppDetailsScreen() {
     queryFn: () => client.getApplication(name, namespace),
     staleTime: 30_000,
   });
+
+  const { data: treeData } = useQuery({
+    queryKey: queryKeys.resourceTree(client.serverUrl, namespace, name),
+    queryFn: () => client.getResourceTree(name, namespace),
+    staleTime: 30_000,
+    enabled: !!app,
+  });
+
+  const treeNodes = useMemo(
+    () => treeData?.nodes ?? [],
+    [treeData?.nodes],
+  );
+
+  const childMap = useMemo(() => {
+    const map = new Map<string, ResourceNode[]>();
+    for (const node of treeNodes) {
+      for (const ref of node.parentRefs ?? []) {
+        if (!ref.uid) continue;
+        const existing = map.get(ref.uid);
+        if (existing) {
+          existing.push(node);
+        } else {
+          map.set(ref.uid, [node]);
+        }
+      }
+    }
+    return map;
+  }, [treeNodes]);
 
   // Live watch — start once; subsequent resourceVersion changes are no-ops
   useEffect(() => {
@@ -588,6 +656,14 @@ export default function AppDetailsScreen() {
                     kind={g.kind}
                     items={g.items}
                     appNamespace={app.metadata.namespace}
+                    treeNodes={treeNodes}
+                    childMap={childMap}
+                    onDrillDown={(node) =>
+                      setTreeSheet({
+                        title: `${node.kind}: ${node.name}`,
+                        nodes: node.uid ? (childMap.get(node.uid) ?? []) : [],
+                      })
+                    }
                   />
                 </View>
               ))}
@@ -686,6 +762,14 @@ export default function AppDetailsScreen() {
           }}
         />
       )}
+
+      <ResourceTreeSheet
+        visible={treeSheet !== null}
+        onClose={() => setTreeSheet(null)}
+        initialTitle={treeSheet?.title ?? ""}
+        initialNodes={treeSheet?.nodes ?? []}
+        childMap={childMap}
+      />
     </View>
   );
 }
@@ -998,6 +1082,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexShrink: 0,
+  },
+  resourceDrillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 6,
+  },
+  resourceChildBadge: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  resourceChildBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: colors.muted,
   },
 
   // Conditions

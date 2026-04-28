@@ -258,6 +258,52 @@ export async function syncApplication(
   }
 }
 
+// ── Resource tree ─────────────────────────────────────────────
+
+export interface ResourceRef {
+  uid?: string;
+  kind: string;
+  namespace?: string;
+  name: string;
+  version?: string;
+  group?: string;
+}
+
+export interface ResourceNode {
+  group?: string;
+  version?: string;
+  kind: string;
+  namespace?: string;
+  name: string;
+  uid?: string;
+  resourceVersion?: string;
+  parentRefs?: ResourceRef[];
+  health?: { status: string; message?: string };
+  info?: { name: string; value: string }[];
+  images?: string[];
+  createdAt?: string;
+}
+
+export interface ResourceTree {
+  nodes?: ResourceNode[];
+  orphanedNodes?: ResourceNode[];
+}
+
+export async function getResourceTree(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+): Promise<ResourceTree> {
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}/resource-tree?appNamespace=${encodeURIComponent(namespace)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<ResourceTree>;
+}
+
 // ── Managed resources / diff ──────────────────────────────────
 
 export interface ManagedResource {

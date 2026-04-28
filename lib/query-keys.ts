@@ -4,4 +4,6 @@ export const queryKeys = {
     ["application", serverUrl, namespace, name] as const,
   managedResources: (serverUrl: string, namespace: string, name: string) =>
     ["managedResources", serverUrl, namespace, name] as const,
+  resourceTree: (serverUrl: string, namespace: string, name: string) =>
+    ["resourceTree", serverUrl, namespace, name] as const,
 };

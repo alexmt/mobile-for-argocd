@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import {
   getApplication,
   getManagedResources,
+  getResourceTree,
   listApplications,
   refreshApplication,
   syncApplication,
@@ -73,6 +74,10 @@ export class ArgoClient {
 
   getManagedResources(name: string, namespace: string) {
     return getManagedResources(this.serverUrl, this.token, name, namespace);
+  }
+
+  getResourceTree(name: string, namespace: string) {
+    return getResourceTree(this.serverUrl, this.token, name, namespace);
   }
 
   watchApplications(
