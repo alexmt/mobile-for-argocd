@@ -69,6 +69,7 @@ export interface Application {
   metadata: {
     name: string;
     namespace: string;
+    resourceVersion?: string;
     annotations?: Record<string, string>;
     labels?: Record<string, string>;
     creationTimestamp?: string;
@@ -199,6 +200,76 @@ export async function listApplications(
     items: data.items ?? [],
     resourceVersion: data.metadata.resourceVersion,
   };
+}
+
+export function watchApplication(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+  resourceVersion: string,
+  onEvent: (type: string, app: Application) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const RNEventSource = require("react-native-sse")
+    .default as typeof import("react-native-sse").default;
+
+  const params = new URLSearchParams({
+    name,
+    appNamespace: namespace,
+    resourceVersion,
+  });
+  const url = `${serverUrl}/api/v1/stream/applications?${params.toString()}`;
+
+  return new Promise((resolve, reject) => {
+    const es = new RNEventSource(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const cleanup = () => {
+      es.close();
+    };
+
+    es.addEventListener("message", (event) => {
+      if (!event.data) return;
+      try {
+        const evt = JSON.parse(event.data) as {
+          result?: { type: string; application: Application };
+          error?: { message: string };
+        };
+        if (evt.error) {
+          cleanup();
+          reject(new Error(evt.error.message));
+          return;
+        }
+        if (evt.result?.type && evt.result.application) {
+          onEvent(evt.result.type, evt.result.application);
+        }
+      } catch {
+        // skip malformed messages
+      }
+    });
+
+    es.addEventListener("error", (event) => {
+      cleanup();
+      if ("xhrStatus" in event && event.xhrStatus === 401) {
+        reject(new Error("Unauthorized"));
+      } else {
+        const msg = "message" in event ? event.message : "Watch error";
+        reject(new Error(msg));
+      }
+    });
+
+    es.addEventListener("close", () => {
+      resolve();
+    });
+
+    signal.addEventListener("abort", () => {
+      cleanup();
+      resolve();
+    });
+  });
 }
 
 export function watchApplications(

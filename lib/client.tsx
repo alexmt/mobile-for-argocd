@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import {
   getApplication,
   listApplications,
+  watchApplication,
   watchApplications,
   type Application,
 } from "./api";
@@ -28,6 +29,24 @@ export class ArgoClient {
 
   getApplication(name: string, namespace: string) {
     return getApplication(this.serverUrl, this.token, name, namespace);
+  }
+
+  watchApplication(
+    name: string,
+    namespace: string,
+    resourceVersion: string,
+    onEvent: (type: string, app: Application) => void,
+    signal: AbortSignal,
+  ) {
+    return watchApplication(
+      this.serverUrl,
+      this.token,
+      name,
+      namespace,
+      resourceVersion,
+      onEvent,
+      signal,
+    );
   }
 
   watchApplications(

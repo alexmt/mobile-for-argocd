@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -244,6 +244,10 @@ export default function AppDetailsScreen() {
   }>();
   const client = useArgoClient();
   const queryClient = useQueryClient();
+  const abortRef = useRef<AbortController | null>(null);
+  const watchingRef = useRef(false);
+
+  const queryKey = queryKeys.application(client.serverUrl, namespace, name);
 
   const {
     data: app,
@@ -251,19 +255,57 @@ export default function AppDetailsScreen() {
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.application(client.serverUrl, namespace, name),
+    queryKey,
     queryFn: () => client.getApplication(name, namespace),
-    initialData: () => {
-      const list = queryClient.getQueryData<{ items: Application[] }>(
-        queryKeys.applications(client.serverUrl),
-      );
-      return list?.items.find(
-        (a) => a.metadata.name === name && a.metadata.namespace === namespace,
-      );
-    },
-    initialDataUpdatedAt: 0,
     staleTime: 30_000,
   });
+
+  // Live watch — start once; subsequent resourceVersion changes are no-ops
+  useEffect(() => {
+    const rv = app?.metadata?.resourceVersion;
+    if (!rv || watchingRef.current) return;
+
+    watchingRef.current = true;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    const watch = async () => {
+      try {
+        await client.watchApplication(
+          name,
+          namespace,
+          rv,
+          (type, updated) => {
+            if (ctrl.signal.aborted) return;
+            if (type === "DELETED") {
+              void router.back();
+              return;
+            }
+            queryClient.setQueryData<Application>(queryKey, updated);
+          },
+          ctrl.signal,
+        );
+      } catch {
+        if (!ctrl.signal.aborted) {
+          watchingRef.current = false;
+          void refetch();
+        }
+      }
+    };
+
+    void watch();
+    return () => {
+      watchingRef.current = false;
+      ctrl.abort();
+    };
+  }, [app?.metadata?.resourceVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Abort watch on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const src = app ? appSource(app) : null;
   const opState = app?.status?.operationState;
