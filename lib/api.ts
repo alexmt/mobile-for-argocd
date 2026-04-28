@@ -95,7 +95,10 @@ export interface Application {
     sync?: { status: string; revision?: string };
     operationState?: {
       phase?: string;
+      startedAt?: string;
       finishedAt?: string;
+      message?: string;
+      syncResult?: { revision?: string; revisions?: string[] };
       operation?: { sync?: Record<string, unknown> };
     };
     summary?: {
@@ -103,10 +106,21 @@ export interface Application {
       images?: string[];
     };
     resources?: {
+      group?: string;
+      version?: string;
       kind: string;
       name: string;
       namespace?: string;
-      health?: { status: string };
+      status?: string;
+      health?: { status: string; message?: string };
+      hook?: boolean;
+      requiresPruning?: boolean;
+      syncWave?: number;
+    }[];
+    conditions?: {
+      type: string;
+      message: string;
+      lastTransitionTime?: string;
     }[];
     sourceHydrator?: Record<string, unknown>;
   };
@@ -151,6 +165,21 @@ const WATCH_FIELDS = [
   "result.type",
   ...APP_FIELDS.map((f) => `result.application.${f}`),
 ].join(",");
+
+export async function getApplication(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+): Promise<Application> {
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}?appNamespace=${encodeURIComponent(namespace)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<Application>;
+}
 
 export async function listApplications(
   serverUrl: string,

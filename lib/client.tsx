@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
-import { listApplications, watchApplications, type Application } from "./api";
+import {
+  getApplication,
+  listApplications,
+  watchApplications,
+  type Application,
+} from "./api";
 import { serverStorage, tokenStorage } from "./storage";
 
 export class ArgoClient {
@@ -19,6 +24,10 @@ export class ArgoClient {
 
   listApplications() {
     return listApplications(this.serverUrl, this.token);
+  }
+
+  getApplication(name: string, namespace: string) {
+    return getApplication(this.serverUrl, this.token, name, namespace);
   }
 
   watchApplications(

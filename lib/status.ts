@@ -70,6 +70,61 @@ export const syncTokens: Record<string, StatusToken> = {
   },
 };
 
+export const operationPhaseTokens: Record<string, StatusToken> = {
+  Succeeded: {
+    color: "#5CD9B0",
+    bg: "rgba(92,217,176,0.14)",
+    border: "rgba(92,217,176,0.40)",
+    icon: "checkmark-circle",
+  },
+  Failed: {
+    color: "#F25D5D",
+    bg: "rgba(242,93,93,0.14)",
+    border: "rgba(242,93,93,0.40)",
+    icon: "close-circle",
+  },
+  Error: {
+    color: "#F25D5D",
+    bg: "rgba(242,93,93,0.14)",
+    border: "rgba(242,93,93,0.40)",
+    icon: "alert-circle",
+  },
+  Running: {
+    color: "#3B96E2",
+    bg: "rgba(59,150,226,0.14)",
+    border: "rgba(59,150,226,0.40)",
+    icon: "refresh-circle",
+  },
+  Progressing: {
+    color: "#3B96E2",
+    bg: "rgba(59,150,226,0.14)",
+    border: "rgba(59,150,226,0.40)",
+    icon: "refresh-circle",
+  },
+  Terminating: {
+    color: "#EF7B4D",
+    bg: "rgba(239,123,77,0.14)",
+    border: "rgba(239,123,77,0.40)",
+    icon: "hourglass",
+  },
+  Pending: {
+    color: "rgba(245,246,250,0.6)",
+    bg: "rgba(255,255,255,0.06)",
+    border: "rgba(255,255,255,0.14)",
+    icon: "time",
+  },
+  Waiting: {
+    color: "rgba(245,246,250,0.6)",
+    bg: "rgba(255,255,255,0.06)",
+    border: "rgba(255,255,255,0.14)",
+    icon: "time",
+  },
+};
+
+export function getOperationPhase(phase: string): StatusToken {
+  return operationPhaseTokens[phase] ?? operationPhaseTokens.Pending;
+}
+
 export const HEALTH_ORDER = [
   "Degraded",
   "Missing",

@@ -1151,7 +1151,15 @@ export default function AppsScreen() {
           <AppCard
             app={item}
             isFav={favorites.has(appKey(item))}
-            onPress={() => {}}
+            onPress={() =>
+              router.push({
+                pathname: "/(app)/details",
+                params: {
+                  name: item.metadata.name,
+                  namespace: item.metadata.namespace,
+                },
+              })
+            }
             onToggleFav={toggleFav}
           />
         )}
