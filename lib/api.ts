@@ -85,7 +85,8 @@ export interface Application {
       namespace?: string;
     };
     syncPolicy?: {
-      automated?: Record<string, unknown>;
+      automated?: { prune?: boolean; selfHeal?: boolean };
+      syncOptions?: string[];
     };
   };
   operation?: {
@@ -180,6 +181,81 @@ export async function getApplication(
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<Application>;
+}
+
+export async function refreshApplication(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+  hard = false,
+): Promise<Application> {
+  const params = new URLSearchParams({
+    appNamespace: namespace,
+    refresh: hard ? "hard" : "normal",
+  });
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<Application>;
+}
+
+export interface SyncApplicationOptions {
+  revision?: string;
+  prune?: boolean;
+  dryRun?: boolean;
+  applyOnly?: boolean;
+  force?: boolean;
+  syncOptions?: string[];
+  resources?:
+    | {
+        group?: string;
+        kind: string;
+        name: string;
+        namespace?: string;
+      }[]
+    | null;
+}
+
+export async function syncApplication(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+  opts: SyncApplicationOptions = {},
+): Promise<void> {
+  const force = opts.force ?? false;
+  const strategy = opts.applyOnly ? { apply: { force } } : { hook: { force } };
+
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}/sync`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        appNamespace: namespace,
+        revision: opts.revision || "HEAD",
+        prune: opts.prune ?? false,
+        dryRun: opts.dryRun ?? false,
+        strategy,
+        resources: opts.resources ?? null,
+        syncOptions: opts.syncOptions?.length
+          ? { items: opts.syncOptions }
+          : null,
+      }),
+    },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as Record<string, string>;
+    throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  }
 }
 
 export async function listApplications(

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   ScrollView,
@@ -14,12 +15,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 import { colors } from "../../lib/theme";
 import { appSource, type Application } from "../../lib/api";
 import { useArgoClient } from "../../lib/client";
 import { queryKeys } from "../../lib/query-keys";
 import { getHealth, getOperationPhase, getSync } from "../../lib/status";
+import { SyncSheet } from "../../components/sync-sheet";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -110,22 +113,33 @@ function DetailRow({
   );
 }
 
-// ── Status pill ────────────────────────────────────────────────
+// ── Status tile ────────────────────────────────────────────────
 
-function StatusPill({
+function StatusTile({
   kind,
   status,
+  subtitle,
 }: {
   kind: "health" | "sync";
   status: string;
+  subtitle: string;
 }) {
   const t = kind === "health" ? getHealth(status) : getSync(status);
   return (
-    <View
-      style={[styles.pill, { backgroundColor: t.bg, borderColor: t.border }]}
-    >
-      <Ionicons name={t.icon} size={11} color={t.color} />
-      <Text style={[styles.pillText, { color: t.color }]}>{status}</Text>
+    <View style={[styles.statusTile, { borderColor: colors.hairline }]}>
+      <View style={[styles.statusGlow, { backgroundColor: t.color }]} />
+      <Text style={styles.statusTileKind}>
+        {kind === "health" ? "HEALTH" : "SYNC"}
+      </Text>
+      <View style={styles.statusTileValueRow}>
+        <Ionicons name={t.icon} size={20} color={t.color} />
+        <Text style={[styles.statusTileValue, { color: t.color }]}>
+          {status}
+        </Text>
+      </View>
+      <Text style={styles.statusTileSubtitle} numberOfLines={1}>
+        {subtitle}
+      </Text>
     </View>
   );
 }
@@ -246,13 +260,14 @@ export default function AppDetailsScreen() {
   const queryClient = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
   const watchingRef = useRef(false);
+  const [syncSheetOpen, setSyncSheetOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const queryKey = queryKeys.application(client.serverUrl, namespace, name);
 
   const {
     data: app,
     isLoading,
-    isRefetching,
     refetch,
   } = useQuery({
     queryKey,
@@ -307,6 +322,18 @@ export default function AppDetailsScreen() {
     };
   }, []);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const updated = await client.refreshApplication(name, namespace);
+      queryClient.setQueryData<Application>(queryKey, updated);
+    } catch (e) {
+      Alert.alert("Refresh failed", e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const src = app ? appSource(app) : null;
   const opState = app?.status?.operationState;
   const opPhase = opState?.phase;
@@ -340,37 +367,40 @@ export default function AppDetailsScreen() {
     app?.status?.resources?.filter((r) => !r.hook).length ?? 0;
   const images = app?.status?.summary?.images ?? [];
   const externalURLs = app?.status?.summary?.externalURLs ?? [];
-  const isAutoSync = !!app?.spec?.syncPolicy?.automated;
 
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.orange} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {name}
-        </Text>
-        <TouchableOpacity
-          onPress={() => void refetch()}
-          style={styles.refreshBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          disabled={isRefetching}
-        >
-          {isRefetching ? (
-            <ActivityIndicator size="small" color={colors.muted} />
-          ) : (
-            <Ionicons name="refresh" size={20} color={colors.text} />
-          )}
-        </TouchableOpacity>
-      </View>
+      <LinearGradient
+        colors={["#171B33", "#0E1226"]}
+        style={[styles.header, { paddingTop: insets.top }]}
+      >
+        <View style={styles.headerNav}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.orange} />
+            <Text style={styles.backText}>Apps</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} activeOpacity={0.7}>
+            <View style={styles.menuDot} />
+            <View style={styles.menuDot} />
+            <View style={styles.menuDot} />
+          </TouchableOpacity>
+        </View>
+        {app && (
+          <View style={styles.headerAppInfo}>
+            <Text style={styles.headerProject}>{app.spec.project}</Text>
+            <Text style={styles.headerAppName} numberOfLines={2}>
+              {name}
+            </Text>
+          </View>
+        )}
+      </LinearGradient>
 
       {isLoading && !app ? (
         <LoadingSkeleton />
@@ -387,32 +417,91 @@ export default function AppDetailsScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Status pills */}
-          <View style={styles.pillRow}>
-            <StatusPill
+          {/* Status tiles */}
+          <View style={styles.tilesRow}>
+            <StatusTile
               kind="health"
               status={app.status?.health?.status ?? "Unknown"}
+              subtitle="App health"
             />
-            <StatusPill
+            <StatusTile
               kind="sync"
               status={app.status?.sync?.status ?? "Unknown"}
+              subtitle={
+                (app.status?.sync?.status ?? "") === "Synced"
+                  ? `to ${shortSha(app.status?.sync?.revision)}`
+                  : `from ${shortSha(app.status?.sync?.revision)}`
+              }
             />
-            {isAutoSync && (
-              <View
+          </View>
+
+          {/* Action row */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              testID="sync-button"
+              onPress={() => setSyncSheetOpen(true)}
+              activeOpacity={0.85}
+              style={{ flex: 1 }}
+            >
+              <LinearGradient
+                colors={["#EF7B4D", "#E5613A"] as const}
+                style={styles.actionBtnPrimary}
+              >
+                <Ionicons name="refresh" size={18} color="#fff" />
+                <Text style={styles.actionLabelPrimary}>Sync</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {(
+              [
+                {
+                  icon: "reload-circle-outline" as const,
+                  label: "Refresh",
+                  onPress: () => void handleRefresh(),
+                  loading: isRefreshing,
+                  disabled: isRefreshing,
+                },
+                {
+                  icon: "git-compare-outline" as const,
+                  label: "Diff",
+                  onPress: undefined,
+                  loading: false,
+                  disabled: false,
+                },
+                {
+                  icon: "time-outline" as const,
+                  label: "History",
+                  onPress: undefined,
+                  loading: false,
+                  disabled: false,
+                },
+                {
+                  icon: "ellipsis-horizontal" as const,
+                  label: "More",
+                  onPress: undefined,
+                  loading: false,
+                  disabled: false,
+                },
+              ] as const
+            ).map((btn) => (
+              <TouchableOpacity
+                key={btn.label}
+                onPress={btn.onPress}
+                disabled={btn.disabled}
+                activeOpacity={0.7}
                 style={[
-                  styles.pill,
-                  {
-                    backgroundColor: "rgba(59,150,226,0.14)",
-                    borderColor: "rgba(59,150,226,0.40)",
-                  },
+                  styles.actionBtnGhost,
+                  btn.disabled && styles.actionBtnDimmed,
                 ]}
               >
-                <Ionicons name="flash" size={11} color="#3B96E2" />
-                <Text style={[styles.pillText, { color: "#3B96E2" }]}>
-                  Auto
-                </Text>
-              </View>
-            )}
+                {btn.loading ? (
+                  <ActivityIndicator size="small" color={colors.text} />
+                ) : (
+                  <Ionicons name={btn.icon} size={18} color={colors.text} />
+                )}
+                <Text style={styles.actionLabel}>{btn.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Summary */}
@@ -574,6 +663,25 @@ export default function AppDetailsScreen() {
           )}
         </ScrollView>
       )}
+
+      {app && (
+        <SyncSheet
+          visible={syncSheetOpen}
+          onClose={() => setSyncSheetOpen(false)}
+          app={app}
+          onSync={async (opts) => {
+            try {
+              await client.syncApplication(name, namespace, opts);
+            } catch (e) {
+              Alert.alert(
+                "Sync failed",
+                e instanceof Error ? e.message : String(e),
+              );
+              throw e;
+            }
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -588,34 +696,154 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#171B33",
-    paddingHorizontal: 8,
-    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.hairline,
+    paddingBottom: 14,
+  },
+  headerNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    minHeight: 44,
   },
   backBtn: {
-    width: 36,
-    height: 36,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
-  headerTitle: {
-    flex: 1,
+  backText: {
     fontSize: 17,
-    fontWeight: "600",
-    color: colors.text,
-    letterSpacing: -0.3,
-    textAlign: "center",
-    marginHorizontal: 8,
+    fontWeight: "400",
+    color: colors.orange,
+    letterSpacing: -0.4,
   },
-  refreshBtn: {
+  menuBtn: {
     width: 36,
     height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
     alignItems: "center",
     justifyContent: "center",
+    gap: 4,
+    marginRight: 8,
+  },
+  menuDot: {
+    width: 3.5,
+    height: 3.5,
+    borderRadius: 2,
+    backgroundColor: colors.text,
+  },
+  headerAppInfo: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  headerProject: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: colors.faint,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  headerAppName: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: -0.4,
+    lineHeight: 27,
+  },
+
+  // Status tiles
+  tilesRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  statusTile: {
+    flex: 1,
+    backgroundColor: "#1C2140",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    paddingBottom: 12,
+    overflow: "hidden",
+  },
+  statusGlow: {
+    position: "absolute",
+    top: -30,
+    right: -30,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    opacity: 0.13,
+  },
+  statusTileKind: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: colors.faint,
+  },
+  statusTileValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  statusTileValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  statusTileSubtitle: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 4,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+
+  // Action row
+  actionRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  actionBtnPrimary: {
+    height: 56,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  actionBtnGhost: {
+    flex: 1,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+  },
+  actionBtnDimmed: {
+    opacity: 0.45,
+  },
+  actionLabelPrimary: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+    color: "#fff",
+  },
+  actionLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+    color: colors.text,
   },
 
   // Loading
@@ -637,28 +865,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingHorizontal: 16,
     gap: 12,
-  },
-
-  // Pills
-  pillRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingBottom: 4,
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  pillText: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.1,
   },
 
   // Section

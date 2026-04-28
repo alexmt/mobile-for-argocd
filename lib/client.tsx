@@ -3,9 +3,12 @@ import { useRouter } from "expo-router";
 import {
   getApplication,
   listApplications,
+  refreshApplication,
+  syncApplication,
   watchApplication,
   watchApplications,
   type Application,
+  type SyncApplicationOptions,
 } from "./api";
 import { serverStorage, tokenStorage } from "./storage";
 
@@ -29,6 +32,24 @@ export class ArgoClient {
 
   getApplication(name: string, namespace: string) {
     return getApplication(this.serverUrl, this.token, name, namespace);
+  }
+
+  refreshApplication(name: string, namespace: string, hard = false) {
+    return refreshApplication(
+      this.serverUrl,
+      this.token,
+      name,
+      namespace,
+      hard,
+    );
+  }
+
+  syncApplication(
+    name: string,
+    namespace: string,
+    opts: SyncApplicationOptions = {},
+  ) {
+    return syncApplication(this.serverUrl, this.token, name, namespace, opts);
   }
 
   watchApplication(
