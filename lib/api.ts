@@ -289,6 +289,58 @@ export interface ResourceTree {
   orphanedNodes?: ResourceNode[];
 }
 
+export async function getResource(
+  serverUrl: string,
+  token: string,
+  appName: string,
+  appNamespace: string,
+  group: string | undefined,
+  version: string | undefined,
+  kind: string,
+  namespace: string | undefined,
+  resourceName: string,
+): Promise<object> {
+  const params = new URLSearchParams({
+    appNamespace,
+    resourceName,
+    kind,
+    group: group ?? "",
+  });
+  if (namespace) params.set("namespace", namespace);
+  if (version) params.set("version", version);
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/resource?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as { manifest?: string };
+  return data.manifest ? (JSON.parse(data.manifest) as object) : {};
+}
+
+export async function getManagedResource(
+  serverUrl: string,
+  token: string,
+  appName: string,
+  appNamespace: string,
+  group: string | undefined,
+  kind: string,
+  namespace: string | undefined,
+  resourceName: string,
+): Promise<ManagedResource | null> {
+  const params = new URLSearchParams({ appNamespace, name: resourceName, kind });
+  if (namespace) params.set("namespace", namespace);
+  if (group) params.set("group", group);
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/managed-resources?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as { items: ManagedResource[] };
+  return data.items?.[0] ?? null;
+}
+
 export async function getResourceTree(
   serverUrl: string,
   token: string,

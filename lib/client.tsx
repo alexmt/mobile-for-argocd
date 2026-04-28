@@ -2,7 +2,9 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import {
   getApplication,
+  getManagedResource,
   getManagedResources,
+  getResource,
   getResourceTree,
   listApplications,
   refreshApplication,
@@ -74,6 +76,48 @@ export class ArgoClient {
 
   getManagedResources(name: string, namespace: string) {
     return getManagedResources(this.serverUrl, this.token, name, namespace);
+  }
+
+  getResource(
+    appName: string,
+    appNamespace: string,
+    group: string | undefined,
+    version: string | undefined,
+    kind: string,
+    namespace: string | undefined,
+    resourceName: string,
+  ) {
+    return getResource(
+      this.serverUrl,
+      this.token,
+      appName,
+      appNamespace,
+      group,
+      version,
+      kind,
+      namespace,
+      resourceName,
+    );
+  }
+
+  getManagedResource(
+    appName: string,
+    appNamespace: string,
+    group: string | undefined,
+    kind: string,
+    namespace: string | undefined,
+    resourceName: string,
+  ) {
+    return getManagedResource(
+      this.serverUrl,
+      this.token,
+      appName,
+      appNamespace,
+      group,
+      kind,
+      namespace,
+      resourceName,
+    );
   }
 
   getResourceTree(name: string, namespace: string) {

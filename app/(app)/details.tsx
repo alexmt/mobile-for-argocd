@@ -24,6 +24,10 @@ import { queryKeys } from "../../lib/query-keys";
 import { getHealth, getOperationPhase, getSync } from "../../lib/status";
 import { SyncSheet } from "../../components/sync-sheet";
 import { ResourceTreeSheet } from "../../components/resource-tree-sheet";
+import {
+  ResourceDetailSheet,
+  type ResourceDetailRef,
+} from "../../components/resource-detail-sheet";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -154,12 +158,14 @@ function ResourceRow({
   appNamespace,
   childCount = 0,
   onDrillDown,
+  onPress,
   last,
 }: {
   resource: ResourceItem;
   appNamespace: string;
   childCount?: number;
   onDrillDown?: () => void;
+  onPress?: () => void;
   last?: boolean;
 }) {
   const health = getHealth(resource.health?.status ?? "Unknown");
@@ -167,7 +173,11 @@ function ResourceRow({
   const showNs = resource.namespace && resource.namespace !== appNamespace;
 
   return (
-    <View style={[styles.resourceRow, !last && styles.detailRowBorder]}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.65 : 1}
+      style={[styles.resourceRow, !last && styles.detailRowBorder]}
+    >
       <View style={styles.resourceLeft}>
         <Text style={styles.resourceName} numberOfLines={1}>
           {resource.name}
@@ -208,7 +218,7 @@ function ResourceRow({
           <Ionicons name="chevron-forward" size={14} color={colors.muted} />
         </TouchableOpacity>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -233,6 +243,7 @@ function ResourceGroup({
   treeNodes,
   childMap,
   onDrillDown,
+  onSelectResource,
 }: {
   group: string | undefined;
   kind: string;
@@ -241,6 +252,7 @@ function ResourceGroup({
   treeNodes: ResourceNode[];
   childMap: Map<string, ResourceNode[]>;
   onDrillDown: (node: ResourceNode) => void;
+  onSelectResource: (ref: ResourceDetailRef) => void;
 }) {
   return (
     <View style={styles.resourceGroup}>
@@ -265,6 +277,20 @@ function ResourceGroup({
             appNamespace={appNamespace}
             childCount={children.length}
             onDrillDown={treeNode ? () => onDrillDown(treeNode) : undefined}
+            onPress={() =>
+              onSelectResource({
+                group: r.group,
+                version: r.version,
+                kind: r.kind,
+                namespace: r.namespace,
+                name: r.name,
+                health: treeNode?.health ?? r.health,
+                syncStatus: r.status,
+                info: treeNode?.info,
+                images: treeNode?.images,
+                createdAt: treeNode?.createdAt,
+              })
+            }
             last={i === items.length - 1}
           />
         );
@@ -304,6 +330,8 @@ export default function AppDetailsScreen() {
     title: string;
     nodes: ResourceNode[];
   } | null>(null);
+  const [detailResource, setDetailResource] =
+    useState<ResourceDetailRef | null>(null);
 
   const {
     data: app,
@@ -664,6 +692,7 @@ export default function AppDetailsScreen() {
                         nodes: node.uid ? (childMap.get(node.uid) ?? []) : [],
                       })
                     }
+                    onSelectResource={setDetailResource}
                   />
                 </View>
               ))}
@@ -769,6 +798,16 @@ export default function AppDetailsScreen() {
         initialTitle={treeSheet?.title ?? ""}
         initialNodes={treeSheet?.nodes ?? []}
         childMap={childMap}
+        appName={name}
+        appNamespace={namespace}
+      />
+
+      <ResourceDetailSheet
+        visible={detailResource !== null}
+        onClose={() => setDetailResource(null)}
+        appName={name}
+        appNamespace={namespace}
+        resource={detailResource}
       />
     </View>
   );

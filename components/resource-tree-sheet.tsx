@@ -15,6 +15,10 @@ import type { ComponentProps } from "react";
 import { colors } from "../lib/theme";
 import { getHealth } from "../lib/status";
 import type { ResourceNode } from "../lib/api";
+import {
+  ResourceDetailContent,
+  type ResourceDetailRef,
+} from "./resource-detail-sheet";
 
 type IoniconName = ComponentProps<typeof Ionicons>["name"];
 
@@ -70,18 +74,24 @@ function NodeRow({
   node,
   childCount,
   onDrillDown,
+  onPress,
   last,
 }: {
   node: ResourceNode;
   childCount: number;
   onDrillDown?: () => void;
+  onPress?: () => void;
   last?: boolean;
 }) {
   const health = getHealth(node.health?.status ?? "Unknown");
   const hasChildren = childCount > 0;
 
   return (
-    <View style={[styles.nodeRow, !last && styles.rowBorder]}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.65 : 1}
+      style={[styles.nodeRow, !last && styles.rowBorder]}
+    >
       {/* Kind icon */}
       <Ionicons
         name={kindIcon(node.kind)}
@@ -121,7 +131,7 @@ function NodeRow({
           />
         </TouchableOpacity>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -138,6 +148,8 @@ export interface ResourceTreeSheetProps {
   initialTitle: string;
   initialNodes: ResourceNode[];
   childMap: Map<string, ResourceNode[]>;
+  appName: string;
+  appNamespace: string;
 }
 
 export function ResourceTreeSheet({
@@ -146,9 +158,12 @@ export function ResourceTreeSheet({
   initialTitle,
   initialNodes,
   childMap,
+  appName,
+  appNamespace,
 }: ResourceTreeSheetProps) {
   const insets = useSafeAreaInsets();
   const [stack, setStack] = useState<Level[]>([]);
+  const [detailNode, setDetailNode] = useState<ResourceDetailRef | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -254,6 +269,19 @@ export function ResourceTreeSheet({
                   node={item}
                   childCount={children.length}
                   onDrillDown={() => push(item)}
+                  onPress={() =>
+                    setDetailNode({
+                      group: item.group,
+                      version: item.version,
+                      kind: item.kind,
+                      namespace: item.namespace,
+                      name: item.name,
+                      health: item.health,
+                      info: item.info,
+                      images: item.images,
+                      createdAt: item.createdAt,
+                    })
+                  }
                   last={index === current.nodes.length - 1}
                 />
               );
@@ -266,6 +294,18 @@ export function ResourceTreeSheet({
           />
         </View>
       </View>
+
+      {/* Resource detail overlay — sits inside the modal, no nested Modal needed */}
+      {detailNode && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <ResourceDetailContent
+            resource={detailNode}
+            appName={appName}
+            appNamespace={appNamespace}
+            onClose={() => setDetailNode(null)}
+          />
+        </View>
+      )}
     </Modal>
   );
 }
