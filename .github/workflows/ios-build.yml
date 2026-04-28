@@ -26,9 +26,12 @@ jobs:
           cache: 'yarn'
           cache-dependency-path: yarn.lock
 
-      - name: Select latest Xcode
+      - name: Select Xcode 16
         run: |
-          LATEST=$(ls /Applications | grep "Xcode_" | sort -V | tail -1)
+          LATEST=$(ls /Applications | grep "Xcode_16" | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            LATEST=$(ls /Applications | grep "Xcode_" | sort -V | tail -1)
+          fi
           echo "Using $LATEST"
           sudo xcode-select -s /Applications/$LATEST/Contents/Developer
 
