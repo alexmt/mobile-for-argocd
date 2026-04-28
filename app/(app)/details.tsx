@@ -79,14 +79,19 @@ function shortSha(rev?: string): string {
 
 function Section({
   title,
+  action,
   children,
 }: {
   title: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {action}
+      </View>
       <View style={styles.card}>{children}</View>
     </View>
   );
@@ -673,7 +678,24 @@ export default function AppDetailsScreen() {
 
           {/* Resources */}
           {resourceGroups.length > 0 && (
-            <Section title={`RESOURCES · ${totalResources}`}>
+            <Section
+              title={`RESOURCES · ${totalResources}`}
+              action={
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push(
+                      `/(app)/tree?name=${encodeURIComponent(name)}&namespace=${encodeURIComponent(namespace)}`,
+                    )
+                  }
+                  style={styles.treeBtn}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons name="git-network-outline" size={12} color={colors.orange} />
+                  <Text style={styles.treeBtnText}>Tree</Text>
+                </TouchableOpacity>
+              }
+            >
               {resourceGroups.map((g, gi) => (
                 <View
                   key={`${g.group ?? ""}/${g.kind}`}
@@ -998,13 +1020,34 @@ const styles = StyleSheet.create({
   section: {
     gap: 6,
   },
+  sectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingLeft: 4,
+  },
   sectionTitle: {
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
     color: colors.faint,
     textTransform: "uppercase",
-    paddingLeft: 4,
+  },
+  treeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 7,
+    backgroundColor: "rgba(239,123,77,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(239,123,77,0.28)",
+  },
+  treeBtnText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.orange,
   },
   card: {
     backgroundColor: "#1C2140",
