@@ -1,5 +1,18 @@
-import { Redirect } from 'expo-router';
+import { Redirect } from "expo-router";
+import { useEffect, useState } from "react";
+import { serverStorage, tokenStorage } from "../lib/storage";
 
 export default function Index() {
-  return <Redirect href="/login" />;
+  const [dest, setDest] = useState<"/(app)/" | "/login" | null>(null);
+
+  useEffect(() => {
+    Promise.all([tokenStorage.get(), serverStorage.get()]).then(
+      ([token, server]) => {
+        setDest(token && server ? "/(app)/" : "/login");
+      },
+    );
+  }, []);
+
+  if (!dest) return null;
+  return <Redirect href={dest} />;
 }

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   Image,
@@ -11,15 +17,15 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 
-import { colors } from '../lib/theme';
+import { colors } from "../lib/theme";
 import {
   fetchAuthSettings,
   hostFromUrl,
@@ -27,8 +33,8 @@ import {
   normalizeUrl,
   ssoLoginUrl,
   type AuthSettings,
-} from '../lib/api';
-import { serverStorage, tokenStorage } from '../lib/storage';
+} from "../lib/api";
+import { serverStorage, tokenStorage } from "../lib/storage";
 
 // ── Seeded RNG (Mulberry32) ────────────────────────────────────
 function mulberry32(seed: number) {
@@ -53,13 +59,28 @@ function Starfield() {
     const rng = mulberry32(7);
     const out: Star[] = [];
     for (let i = 0; i < 80; i++) {
-      out.push({ left: `${(rng() * 100).toFixed(1)}%`, top: `${(rng() * 100).toFixed(1)}%`, size: 1, opacity: 0.3 + rng() * 0.4 });
+      out.push({
+        left: `${(rng() * 100).toFixed(1)}%`,
+        top: `${(rng() * 100).toFixed(1)}%`,
+        size: 1,
+        opacity: 0.3 + rng() * 0.4,
+      });
     }
     for (let i = 0; i < 26; i++) {
-      out.push({ left: `${(rng() * 100).toFixed(1)}%`, top: `${(rng() * 100).toFixed(1)}%`, size: 1.5, opacity: 0.5 + rng() * 0.4 });
+      out.push({
+        left: `${(rng() * 100).toFixed(1)}%`,
+        top: `${(rng() * 100).toFixed(1)}%`,
+        size: 1.5,
+        opacity: 0.5 + rng() * 0.4,
+      });
     }
     for (let i = 0; i < 8; i++) {
-      out.push({ left: `${(rng() * 100).toFixed(1)}%`, top: `${(rng() * 60).toFixed(1)}%`, size: 2 + rng() * 1.5, opacity: 0.9 });
+      out.push({
+        left: `${(rng() * 100).toFixed(1)}%`,
+        top: `${(rng() * 60).toFixed(1)}%`,
+        size: 2 + rng() * 1.5,
+        opacity: 0.9,
+      });
     }
     return out;
   }, []);
@@ -70,13 +91,13 @@ function Starfield() {
         <View
           key={i}
           style={{
-            position: 'absolute',
+            position: "absolute",
             left: s.left as `${number}%`,
             top: s.top as `${number}%`,
             width: s.size,
             height: s.size,
             borderRadius: s.size,
-            backgroundColor: '#fff',
+            backgroundColor: "#fff",
             opacity: s.opacity,
           }}
         />
@@ -101,9 +122,36 @@ function ArgoWordmark({ size = 28 }: { size?: number }) {
   return (
     <View style={styles.wordmarkRow}>
       {/* Three concentric circles built from nested Views */}
-      <View style={{ width: d, height: d, borderRadius: d / 2, borderWidth: 2, borderColor: 'rgba(239,123,77,0.35)', alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ width: d * 0.65, height: d * 0.65, borderRadius: d * 0.325, borderWidth: 2, borderColor: 'rgba(239,123,77,0.55)', alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: d * 0.3, height: d * 0.3, borderRadius: d * 0.15, backgroundColor: colors.orange }} />
+      <View
+        style={{
+          width: d,
+          height: d,
+          borderRadius: d / 2,
+          borderWidth: 2,
+          borderColor: "rgba(239,123,77,0.35)",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <View
+          style={{
+            width: d * 0.65,
+            height: d * 0.65,
+            borderRadius: d * 0.325,
+            borderWidth: 2,
+            borderColor: "rgba(239,123,77,0.55)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <View
+            style={{
+              width: d * 0.3,
+              height: d * 0.3,
+              borderRadius: d * 0.15,
+              backgroundColor: colors.orange,
+            }}
+          />
         </View>
       </View>
       <Text style={[styles.wordmarkText, { fontSize: size }]}>argo</Text>
@@ -112,34 +160,56 @@ function ArgoWordmark({ size = 28 }: { size?: number }) {
 }
 
 // ── Server chip ────────────────────────────────────────────────
-function ServerChip({ url, onPress }: { url: string | null; onPress: () => void }) {
-  const label = url ? hostFromUrl(url) : 'tap to add server';
+function ServerChip({
+  url,
+  onPress,
+}: {
+  url: string | null;
+  onPress: () => void;
+}) {
+  const label = url ? hostFromUrl(url) : "tap to add server";
   const hasServer = !!url;
 
   return (
     <TouchableOpacity onPress={onPress} style={styles.chip} activeOpacity={0.7}>
       <View style={[styles.chipDot, !hasServer && styles.chipDotOff]} />
-      <Text style={styles.chipText} numberOfLines={1}>{label}</Text>
+      <Text style={styles.chipText} numberOfLines={1}>
+        {label}
+      </Text>
       <Ionicons name="chevron-down" size={12} color="rgba(255,255,255,0.5)" />
     </TouchableOpacity>
   );
 }
 
 // ── Error toast ────────────────────────────────────────────────
-function ErrorToast({ visible, message }: { visible: boolean; message: string }) {
+function ErrorToast({
+  visible,
+  message,
+}: {
+  visible: boolean;
+  message: string;
+}) {
   const ty = useRef(new Animated.Value(-20)).current;
   const op = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(ty, { toValue: visible ? 0 : -20, duration: 300, useNativeDriver: true }),
-      Animated.timing(op, { toValue: visible ? 1 : 0, duration: 300, useNativeDriver: true }),
+      Animated.timing(ty, {
+        toValue: visible ? 0 : -20,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(op, {
+        toValue: visible ? 1 : 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
     ]).start();
   }, [visible, ty, op]);
 
   return (
     <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
+      pointerEvents={visible ? "auto" : "none"}
       style={[styles.toast, { transform: [{ translateY: ty }], opacity: op }]}
     >
       <Ionicons name="alert-circle" size={20} color={colors.danger} />
@@ -159,14 +229,30 @@ function SuccessOverlay({ visible }: { visible: boolean }) {
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.timing(bgOp, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(bgOp, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
         Animated.spring(scale, { toValue: 1, useNativeDriver: true }),
-        Animated.timing(circleOp, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(circleOp, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
         Animated.sequence([
           Animated.delay(300),
           Animated.parallel([
-            Animated.timing(textOp, { toValue: 1, duration: 400, useNativeDriver: true }),
-            Animated.timing(textTy, { toValue: 0, duration: 400, useNativeDriver: true }),
+            Animated.timing(textOp, {
+              toValue: 1,
+              duration: 400,
+              useNativeDriver: true,
+            }),
+            Animated.timing(textTy, {
+              toValue: 0,
+              duration: 400,
+              useNativeDriver: true,
+            }),
           ]),
         ]),
       ]).start();
@@ -181,13 +267,27 @@ function SuccessOverlay({ visible }: { visible: boolean }) {
 
   return (
     <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
-      style={[StyleSheet.absoluteFillObject, styles.successOverlay, { opacity: bgOp }]}
+      pointerEvents={visible ? "auto" : "none"}
+      style={[
+        StyleSheet.absoluteFillObject,
+        styles.successOverlay,
+        { opacity: bgOp },
+      ]}
     >
-      <Animated.View style={[styles.successCircle, { transform: [{ scale }], opacity: circleOp }]}>
+      <Animated.View
+        style={[
+          styles.successCircle,
+          { transform: [{ scale }], opacity: circleOp },
+        ]}
+      >
         <Ionicons name="checkmark" size={44} color={colors.success} />
       </Animated.View>
-      <Animated.Text style={[styles.successText, { opacity: textOp, transform: [{ translateY: textTy }] }]}>
+      <Animated.Text
+        style={[
+          styles.successText,
+          { opacity: textOp, transform: [{ translateY: textTy }] },
+        ]}
+      >
         Welcome back
       </Animated.Text>
     </Animated.View>
@@ -200,7 +300,7 @@ interface FieldProps {
   value: string;
   onChangeText: (text: string) => void;
   secureTextEntry?: boolean;
-  autoComplete?: 'username' | 'current-password' | 'off';
+  autoComplete?: "username" | "current-password" | "off";
   error?: boolean;
   trailing?: React.ReactNode;
   onFocus?: () => void;
@@ -208,13 +308,28 @@ interface FieldProps {
   focused?: boolean;
 }
 
-function Field({ label, value, onChangeText, secureTextEntry, autoComplete, error, trailing, onFocus, onBlur, focused }: FieldProps) {
+function Field({
+  label,
+  value,
+  onChangeText,
+  secureTextEntry,
+  autoComplete,
+  error,
+  trailing,
+  onFocus,
+  onBlur,
+  focused,
+}: FieldProps) {
   const borderColor = error
-    ? 'rgba(255,107,107,0.5)'
+    ? "rgba(255,107,107,0.5)"
     : focused
-      ? 'rgba(239,123,77,0.55)'
+      ? "rgba(239,123,77,0.55)"
       : colors.hairline;
-  const labelColor = error ? colors.danger : focused ? colors.orange : colors.faint;
+  const labelColor = error
+    ? colors.danger
+    : focused
+      ? colors.orange
+      : colors.faint;
 
   return (
     <View style={[styles.field, { borderColor }]}>
@@ -242,8 +357,16 @@ function Field({ label, value, onChangeText, secureTextEntry, autoComplete, erro
 // ── Eye toggle ─────────────────────────────────────────────────
 function EyeToggle({ open, onPress }: { open: boolean; onPress: () => void }) {
   return (
-    <TouchableOpacity onPress={onPress} style={styles.eyeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-      <Ionicons name={open ? 'eye' : 'eye-off'} size={20} color={colors.muted} />
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.eyeBtn}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Ionicons
+        name={open ? "eye" : "eye-off"}
+        size={20}
+        color={colors.muted}
+      />
     </TouchableOpacity>
   );
 }
@@ -274,18 +397,38 @@ function ServerModal({
   }, [input, onSave]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onCancel}
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.modalOverlay}
       >
-        <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={onCancel} activeOpacity={1} />
-        <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          onPress={onCancel}
+          activeOpacity={1}
+        />
+        <View
+          style={[styles.modalSheet, { paddingBottom: insets.bottom + 24 }]}
+        >
           <View style={styles.modalHandle} />
           <Text style={styles.modalTitle}>Server URL</Text>
-          <Text style={styles.modalHint}>Enter the URL of your Argo CD instance</Text>
-          <View style={[styles.field, { borderColor: colors.hairline, marginTop: 20 }]}>
-            <Text style={[styles.fieldLabel, { color: colors.faint }]}>URL</Text>
+          <Text style={styles.modalHint}>
+            Enter the URL of your Argo CD instance
+          </Text>
+          <View
+            style={[
+              styles.field,
+              { borderColor: colors.hairline, marginTop: 20 },
+            ]}
+          >
+            <Text style={[styles.fieldLabel, { color: colors.faint }]}>
+              URL
+            </Text>
             <View style={styles.fieldRow}>
               <TextInput
                 style={styles.fieldInput}
@@ -305,12 +448,21 @@ function ServerModal({
             </View>
           </View>
           <View style={styles.modalButtons}>
-            <TouchableOpacity onPress={onCancel} style={[styles.btn, styles.btnGhost]}>
-              <Text style={[styles.btnText, { color: colors.muted }]}>Cancel</Text>
+            <TouchableOpacity
+              onPress={onCancel}
+              style={[styles.btn, styles.btnGhost]}
+            >
+              <Text style={[styles.btnText, { color: colors.muted }]}>
+                Cancel
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
-              style={[styles.btn, styles.btnPrimary, !input.trim() && styles.btnPrimaryDisabled]}
+              style={[
+                styles.btn,
+                styles.btnPrimary,
+                !input.trim() && styles.btnPrimaryDisabled,
+              ]}
               disabled={!input.trim()}
             >
               <Text style={styles.btnText}>Save</Text>
@@ -323,7 +475,13 @@ function ServerModal({
 }
 
 // ── Login screen ───────────────────────────────────────────────
-type LoginState = 'idle' | 'loading-settings' | 'signing-in' | 'sso-pending' | 'error' | 'success';
+type LoginState =
+  | "idle"
+  | "loading-settings"
+  | "signing-in"
+  | "sso-pending"
+  | "error"
+  | "success";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -331,19 +489,19 @@ export default function LoginScreen() {
 
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [authSettings, setAuthSettings] = useState<AuthSettings | null>(null);
-  const [loginState, setLoginState] = useState<LoginState>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [loginState, setLoginState] = useState<LoginState>("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [focused, setFocused] = useState<'username' | 'password' | null>(null);
+  const [focused, setFocused] = useState<"username" | "password" | null>(null);
 
   const [showServerModal, setShowServerModal] = useState(false);
 
   // Load saved server URL on mount
   useEffect(() => {
-    serverStorage.get().then(url => {
+    serverStorage.get().then((url) => {
       if (url) {
         setServerUrl(url);
       } else {
@@ -355,16 +513,16 @@ export default function LoginScreen() {
   // Fetch auth settings when server URL changes
   useEffect(() => {
     if (!serverUrl) return;
-    setLoginState('loading-settings');
+    setLoginState("loading-settings");
     fetchAuthSettings(serverUrl)
-      .then(settings => {
+      .then((settings) => {
         setAuthSettings(settings);
-        setLoginState('idle');
+        setLoginState("idle");
       })
       .catch(() => {
         // Fall back to username/password login if settings can't be fetched
         setAuthSettings({ userLoginsDisabled: false });
-        setLoginState('idle');
+        setLoginState("idle");
       });
   }, [serverUrl]);
 
@@ -375,56 +533,61 @@ export default function LoginScreen() {
   }, [authSettings]);
 
   const ssoLabel = useMemo(() => {
-    if (!authSettings) return 'SSO Login';
-    if (authSettings.oidcConfig) return `Continue with ${authSettings.oidcConfig.name}`;
+    if (!authSettings) return "SSO Login";
+    if (authSettings.oidcConfig)
+      return `Continue with ${authSettings.oidcConfig.name}`;
     const connectors = authSettings.dexConfig?.connectors ?? [];
     if (connectors.length === 1) return `Continue with ${connectors[0].name}`;
-    return 'SSO Login';
+    return "SSO Login";
   }, [authSettings]);
 
   const canSubmit =
-    loginState === 'idle' && username.trim().length > 0 && password.length > 0;
+    loginState === "idle" && username.trim().length > 0 && password.length > 0;
 
   const handleSignIn = useCallback(async () => {
     if (!canSubmit || !serverUrl) return;
-    setLoginState('signing-in');
-    setErrorMessage('');
+    setLoginState("signing-in");
+    setErrorMessage("");
     try {
-      const token = await loginWithPassword(serverUrl, username.trim(), password);
+      const token = await loginWithPassword(
+        serverUrl,
+        username.trim(),
+        password,
+      );
       await tokenStorage.set(token);
-      setLoginState('success');
-      setTimeout(() => router.replace('/'), 900);
+      setLoginState("success");
+      setTimeout(() => router.replace("/(app)/"), 900);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Login failed';
+      const msg = e instanceof Error ? e.message : "Login failed";
       setErrorMessage(msg);
-      setLoginState('error');
-      setTimeout(() => setLoginState('idle'), 2400);
+      setLoginState("error");
+      setTimeout(() => setLoginState("idle"), 2400);
     }
   }, [canSubmit, serverUrl, username, password, router]);
 
   const handleSSO = useCallback(async () => {
-    if (!serverUrl || loginState !== 'idle') return;
-    setLoginState('sso-pending');
+    if (!serverUrl || loginState !== "idle") return;
+    setLoginState("sso-pending");
     try {
       // Opens the SSO flow in an in-app browser.
       // After authentication the server should redirect back to the argocd:// scheme.
       const result = await WebBrowser.openAuthSessionAsync(
         ssoLoginUrl(serverUrl),
-        'argocd://',
+        "argocd://",
       );
-      if (result.type === 'success' && result.url) {
+      if (result.type === "success" && result.url) {
         const params = new URL(result.url).searchParams;
-        const token = params.get('token');
+        const token = params.get("token");
         if (token) {
           await tokenStorage.set(token);
-          setLoginState('success');
-          setTimeout(() => router.replace('/'), 900);
+          setLoginState("success");
+          setTimeout(() => router.replace("/(app)/"), 900);
           return;
         }
       }
-      setLoginState('idle');
+      setLoginState("idle");
     } catch {
-      setLoginState('idle');
+      setLoginState("idle");
     }
   }, [serverUrl, loginState, router]);
 
@@ -435,7 +598,7 @@ export default function LoginScreen() {
     setShowServerModal(false);
   }, []);
 
-  const isLoading = loginState === 'signing-in' || loginState === 'sso-pending';
+  const isLoading = loginState === "signing-in" || loginState === "sso-pending";
 
   return (
     <View style={styles.root}>
@@ -457,22 +620,25 @@ export default function LoginScreen() {
       </View>
 
       {/* Error toast */}
-      <ErrorToast visible={loginState === 'error'} message={errorMessage} />
+      <ErrorToast visible={loginState === "error"} message={errorMessage} />
 
       {/* Main content */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.content}
       >
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 36 }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + 36 },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           {/* Hero */}
           <View style={styles.hero}>
             <Image
-              source={require('../assets/argo-mascot.png')}
+              source={require("../assets/argo-mascot.png")}
               style={styles.mascot}
               resizeMode="contain"
             />
@@ -486,17 +652,34 @@ export default function LoginScreen() {
             {ssoConfigured && (
               <TouchableOpacity
                 onPress={handleSSO}
-                disabled={isLoading || loginState === 'loading-settings'}
+                disabled={isLoading || loginState === "loading-settings"}
                 style={[styles.btnSSO, isLoading && { opacity: 0.6 }]}
                 activeOpacity={0.8}
               >
-                {loginState === 'sso-pending' ? (
+                {loginState === "sso-pending" ? (
                   <View style={styles.spinner} />
                 ) : (
                   <>
                     {/* SSO glyph: circle with inner dot */}
-                    <View style={{ width: 18, height: 18, borderRadius: 9, borderWidth: 2.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-                      <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#fff' }} />
+                    <View
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        borderWidth: 2.5,
+                        borderColor: "#fff",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: 2,
+                          backgroundColor: "#fff",
+                        }}
+                      />
                     </View>
                     <Text style={styles.btnSSOText}>{ssoLabel}</Text>
                   </>
@@ -521,9 +704,9 @@ export default function LoginScreen() {
                   value={username}
                   onChangeText={setUsername}
                   autoComplete="username"
-                  error={loginState === 'error'}
-                  focused={focused === 'username'}
-                  onFocus={() => setFocused('username')}
+                  error={loginState === "error"}
+                  focused={focused === "username"}
+                  onFocus={() => setFocused("username")}
                   onBlur={() => setFocused(null)}
                 />
                 <Field
@@ -532,14 +715,14 @@ export default function LoginScreen() {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   autoComplete="current-password"
-                  error={loginState === 'error'}
-                  focused={focused === 'password'}
-                  onFocus={() => setFocused('password')}
+                  error={loginState === "error"}
+                  focused={focused === "password"}
+                  onFocus={() => setFocused("password")}
                   onBlur={() => setFocused(null)}
                   trailing={
                     <EyeToggle
                       open={showPassword}
-                      onPress={() => setShowPassword(v => !v)}
+                      onPress={() => setShowPassword((v) => !v)}
                     />
                   }
                 />
@@ -550,12 +733,16 @@ export default function LoginScreen() {
                   activeOpacity={0.85}
                 >
                   <LinearGradient
-                    colors={canSubmit ? [colors.orange, colors.orangeDeep] : ['rgba(239,123,77,0.3)', 'rgba(229,97,58,0.3)']}
+                    colors={
+                      canSubmit
+                        ? [colors.orange, colors.orangeDeep]
+                        : ["rgba(239,123,77,0.3)", "rgba(229,97,58,0.3)"]
+                    }
                     style={styles.btnPrimary}
                     start={{ x: 0.5, y: 0 }}
                     end={{ x: 0.5, y: 1 }}
                   >
-                    {loginState === 'signing-in' ? (
+                    {loginState === "signing-in" ? (
                       <View style={styles.spinner} />
                     ) : (
                       <>
@@ -587,10 +774,10 @@ export default function LoginScreen() {
       </KeyboardAvoidingView>
 
       {/* Overlays */}
-      <SuccessOverlay visible={loginState === 'success'} />
+      <SuccessOverlay visible={loginState === "success"} />
       <ServerModal
         visible={showServerModal}
-        initialValue={serverUrl ?? ''}
+        initialValue={serverUrl ?? ""}
         onSave={handleSaveServer}
         onCancel={() => {
           if (serverUrl) setShowServerModal(false);
@@ -609,54 +796,54 @@ const styles = StyleSheet.create({
 
   // Background
   glowPurple: {
-    position: 'absolute',
+    position: "absolute",
     top: -80,
     right: -80,
     width: 360,
     height: 360,
     borderRadius: 180,
-    backgroundColor: 'rgba(127,86,217,0.22)',
+    backgroundColor: "rgba(127,86,217,0.22)",
   },
   glowOrange: {
-    position: 'absolute',
-    bottom: '8%',
-    left: '50%',
+    position: "absolute",
+    bottom: "8%",
+    left: "50%",
     marginLeft: -210,
     width: 420,
     height: 220,
     borderRadius: 210,
-    backgroundColor: 'rgba(239,123,77,0.13)',
+    backgroundColor: "rgba(239,123,77,0.13)",
   },
 
   // Wordmark
   wordmarkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   wordmarkText: {
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: -0.5,
     color: colors.orange,
   },
 
   // Chip
   topBar: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     zIndex: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderColor: colors.hairline,
   },
@@ -675,7 +862,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
   },
   chipText: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     fontSize: 11,
     color: colors.muted,
     letterSpacing: 0.2,
@@ -684,48 +871,48 @@ const styles = StyleSheet.create({
 
   // Toast
   toast: {
-    position: 'absolute',
+    position: "absolute",
     top: 80,
     left: 16,
     right: 16,
     zIndex: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    backgroundColor: 'rgba(255,107,107,0.14)',
+    backgroundColor: "rgba(255,107,107,0.14)",
     borderWidth: 1,
-    borderColor: 'rgba(255,107,107,0.4)',
+    borderColor: "rgba(255,107,107,0.4)",
     borderRadius: 14,
     padding: 12,
   },
   toastText: {
     fontSize: 14,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.1,
     flex: 1,
   },
 
   // Success overlay
   successOverlay: {
-    backgroundColor: 'rgba(11,21,48,0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(11,21,48,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 24,
   },
   successCircle: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: 'rgba(92,217,176,0.15)',
+    backgroundColor: "rgba(92,217,176,0.15)",
     borderWidth: 2,
     borderColor: colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   successText: {
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     letterSpacing: -0.4,
   },
@@ -739,8 +926,8 @@ const styles = StyleSheet.create({
   },
   hero: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 24,
     paddingTop: 100,
     paddingBottom: 24,
@@ -754,7 +941,7 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 15,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.1,
     marginTop: -4,
   },
@@ -775,21 +962,21 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     marginBottom: 4,
   },
   fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   fieldInput: {
     flex: 1,
     fontSize: 17,
     color: colors.text,
-    fontWeight: '500',
+    fontWeight: "500",
     letterSpacing: -0.2,
     padding: 0,
     margin: 0,
@@ -802,26 +989,26 @@ const styles = StyleSheet.create({
   btnSSO: {
     height: 54,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: colors.hairlineHi,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
   },
   btnSSOText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     letterSpacing: -0.2,
   },
   btnPrimary: {
     height: 54,
     borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
   },
   btnPrimaryDisabled: {
@@ -829,12 +1016,12 @@ const styles = StyleSheet.create({
   },
   btnText: {
     fontSize: 17,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: "600",
+    color: "#fff",
     letterSpacing: -0.2,
   },
   btnGhost: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: colors.hairlineHi,
   },
@@ -842,14 +1029,14 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Divider
   divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     marginVertical: 4,
   },
@@ -862,19 +1049,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.faint,
     letterSpacing: 1.5,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   // Footer
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     marginTop: 14,
     paddingHorizontal: 4,
   },
   footerLink: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
     color: colors.muted,
   },
 
@@ -882,25 +1069,25 @@ const styles = StyleSheet.create({
   disabledMsg: {
     padding: 16,
     borderRadius: 14,
-    backgroundColor: 'rgba(255,107,107,0.08)',
+    backgroundColor: "rgba(255,107,107,0.08)",
     borderWidth: 1,
-    borderColor: 'rgba(255,107,107,0.25)',
+    borderColor: "rgba(255,107,107,0.25)",
   },
   disabledMsgText: {
     fontSize: 14,
     color: colors.danger,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
 
   // Server modal
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   modalSheet: {
-    backgroundColor: '#1C2140',
+    backgroundColor: "#1C2140",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -914,12 +1101,12 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.hairlineHi,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.text,
     letterSpacing: -0.4,
   },
@@ -930,7 +1117,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   modalButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginTop: 16,
   },
@@ -941,7 +1128,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderTopColor: '#fff',
+    borderColor: "rgba(255,255,255,0.3)",
+    borderTopColor: "#fff",
   },
 });
