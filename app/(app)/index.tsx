@@ -607,43 +607,14 @@ function FilterRow({
 }
 
 // ── Tab bar ───────────────────────────────────────────────────
-function TabBar({ active }: { active: "apps" | "activity" | "settings" }) {
+function TabBar() {
   const insets = useSafeAreaInsets();
-  const tabs = [
-    { key: "apps" as const, label: "Apps", icon: "grid" as const },
-    { key: "activity" as const, label: "Activity", icon: "pulse" as const },
-    {
-      key: "settings" as const,
-      label: "Settings",
-      icon: "settings-outline" as const,
-    },
-  ];
   return (
     <View style={[styles.tabBar, { paddingBottom: insets.bottom + 4 }]}>
-      {tabs.map((t) => {
-        const on = active === t.key;
-        return (
-          <TouchableOpacity
-            key={t.key}
-            style={styles.tabItem}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={t.icon}
-              size={22}
-              color={on ? colors.orange : colors.faint}
-            />
-            <Text
-              style={[
-                styles.tabLabel,
-                { color: on ? colors.orange : colors.faint },
-              ]}
-            >
-              {t.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+      <View style={styles.tabItem}>
+        <Ionicons name="grid" size={22} color={colors.orange} />
+        <Text style={[styles.tabLabel, { color: colors.orange }]}>Apps</Text>
+      </View>
     </View>
   );
 }
@@ -1192,7 +1163,7 @@ export default function AppsScreen() {
         keyboardDismissMode="on-drag"
       />
 
-      <TabBar active="apps" />
+      <TabBar />
 
       <SortSheet
         visible={showSort}
