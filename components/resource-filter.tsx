@@ -214,12 +214,7 @@ export function ResourceFilterSheet({
     });
   };
 
-  const hasAny =
-    state.name ||
-    state.kinds.length ||
-    state.sync.length ||
-    state.health.length ||
-    state.namespaces.length;
+  const hasAny = resourceFilterCount(state) > 0;
 
   return (
     <Modal
