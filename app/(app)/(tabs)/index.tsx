@@ -349,6 +349,147 @@ function ActivePill({
   );
 }
 
+// ── Label expansion ───────────────────────────────────────────
+
+const LABEL_ACCENT = "#5CD1A0";
+
+function LabelExpansion({
+  filters,
+  labelMap,
+  onAdd,
+  onRemove,
+}: {
+  filters: string[];
+  labelMap: Map<string, string[]>;
+  onAdd: (f: string) => void;
+  onRemove: (f: string) => void;
+}) {
+  const [input, setInput] = useState("");
+  const eqIdx = input.indexOf("=");
+  const inputKey = eqIdx >= 0 ? input.slice(0, eqIdx) : input;
+  const inputVal = eqIdx >= 0 ? input.slice(eqIdx + 1) : null;
+
+  const suggestions = (() => {
+    if (eqIdx === -1) {
+      const q = input.toLowerCase();
+      const keys = Array.from(labelMap.keys())
+        .filter((k) => !q || k.toLowerCase().includes(q))
+        .slice(0, 5);
+      return keys
+        .flatMap((k) =>
+          (labelMap.get(k) ?? [])
+            .slice(0, 2)
+            .filter((v) => !filters.includes(`${k}=${v}`))
+            .map((v) => ({
+              text: `${k}=${v}`,
+              onTap: () => {
+                onAdd(`${k}=${v}`);
+                setInput("");
+              },
+            })),
+        )
+        .slice(0, 8);
+    }
+    const vals = labelMap.get(inputKey) ?? [];
+    const q = inputVal!.toLowerCase();
+    return vals
+      .filter((v) => !q || v.toLowerCase().includes(q))
+      .filter((v) => !filters.includes(`${inputKey}=${v}`))
+      .slice(0, 8)
+      .map((v) => ({
+        text: v,
+        onTap: () => {
+          onAdd(`${inputKey}=${v}`);
+          setInput("");
+        },
+      }));
+  })();
+
+  const trimmed = input.trim();
+  const canSubmit =
+    trimmed.length > 0 &&
+    !trimmed.startsWith("=") &&
+    !trimmed.endsWith("=") &&
+    !filters.includes(trimmed);
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    onAdd(trimmed);
+    setInput("");
+  };
+
+  return (
+    <View style={styles.labelExpansion}>
+      {filters.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.labelFiltersRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          {filters.map((f) => (
+            <View key={f} style={styles.labelFilterChip}>
+              <Text style={styles.labelFilterText}>{f}</Text>
+              <TouchableOpacity
+                onPress={() => onRemove(f)}
+                hitSlop={{ top: 4, bottom: 4, left: 0, right: 6 }}
+              >
+                <Ionicons name="close" size={9} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+      <View style={styles.labelInputRow}>
+        <Ionicons name="pricetag-outline" size={13} color={colors.muted} />
+        <TextInput
+          value={input}
+          onChangeText={setInput}
+          onSubmitEditing={handleSubmit}
+          placeholder="key  or  key=value"
+          placeholderTextColor={colors.faint}
+          style={styles.labelInput}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardAppearance="dark"
+          returnKeyType="done"
+        />
+        {canSubmit && (
+          <TouchableOpacity
+            onPress={handleSubmit}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons
+              name="return-down-back-outline"
+              size={16}
+              color={colors.orange}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+      {suggestions.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.labelSuggestRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          {suggestions.map((s, i) => (
+            <TouchableOpacity
+              key={i}
+              onPress={s.onTap}
+              style={styles.labelSuggestChip}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.labelSuggestText}>{s.text}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 // ── Bottom sheet ───────────────────────────────────────────────
 function BottomSheet({
   visible,
@@ -528,6 +669,9 @@ export default function AppsScreen() {
   const [favOn, setFavOn] = useState(false);
   const [syncSel, setSyncSel] = useState<string[]>([]);
   const [healthSel, setHealthSel] = useState<string[]>([]);
+  const [projectSel, setProjectSel] = useState<string[]>([]);
+  const [namespaceSel, setNamespaceSel] = useState<string[]>([]);
+  const [labelFilters, setLabelFilters] = useState<string[]>([]);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [showSort, setShowSort] = useState(false);
@@ -642,6 +786,57 @@ export default function AppsScreen() {
     return c;
   }, [apps]);
 
+  const projectCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const a of apps) c[a.spec.project] = (c[a.spec.project] ?? 0) + 1;
+    return c;
+  }, [apps]);
+
+  const namespaceCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const a of apps) {
+      const ns = a.metadata.namespace ?? "";
+      c[ns] = (c[ns] ?? 0) + 1;
+    }
+    return c;
+  }, [apps]);
+
+  const availableProjects = useMemo(
+    () => Array.from(new Set(apps.map((a) => a.spec.project))).sort(),
+    [apps],
+  );
+
+  const availableNamespaces = useMemo(
+    () =>
+      Array.from(
+        new Set(apps.map((a) => a.metadata.namespace).filter(Boolean)),
+      ).sort() as string[],
+    [apps],
+  );
+
+  const availableLabelMap = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const a of apps) {
+      for (const [k, v] of Object.entries(a.metadata.labels ?? {})) {
+        if (!m.has(k)) m.set(k, new Set());
+        m.get(k)!.add(v);
+      }
+    }
+    const result = new Map<string, string[]>();
+    for (const [k, vs] of m) result.set(k, Array.from(vs).sort());
+    return result;
+  }, [apps]);
+
+  const addLabelFilter = useCallback(
+    (f: string) =>
+      setLabelFilters((prev) => [...prev.filter((x) => x !== f), f]),
+    [],
+  );
+  const removeLabelFilter = useCallback(
+    (f: string) => setLabelFilters((prev) => prev.filter((x) => x !== f)),
+    [],
+  );
+
   // Filter + sort — full list (used for counts and pagination source)
   const filteredSortedApps = useMemo(() => {
     let list = apps;
@@ -668,6 +863,25 @@ export default function AppsScreen() {
         healthSel.includes(a.status?.health?.status ?? "Unknown"),
       );
 
+    if (projectSel.length > 0)
+      list = list.filter((a) => projectSel.includes(a.spec.project));
+
+    if (namespaceSel.length > 0)
+      list = list.filter((a) =>
+        namespaceSel.includes(a.metadata.namespace ?? ""),
+      );
+
+    if (labelFilters.length > 0) {
+      list = list.filter((a) => {
+        const labels = a.metadata.labels ?? {};
+        return labelFilters.every((f) => {
+          const eqIdx = f.indexOf("=");
+          if (eqIdx === -1) return f in labels;
+          return labels[f.slice(0, eqIdx)] === f.slice(eqIdx + 1);
+        });
+      });
+    }
+
     list = [...list].sort((a, b) => {
       switch (sortKey) {
         case "name":
@@ -693,12 +907,32 @@ export default function AppsScreen() {
     });
 
     return list;
-  }, [apps, search, favOn, syncSel, healthSel, favorites, sortKey]);
+  }, [
+    apps,
+    search,
+    favOn,
+    syncSel,
+    healthSel,
+    projectSel,
+    namespaceSel,
+    labelFilters,
+    favorites,
+    sortKey,
+  ]);
 
   // Reset to first page whenever the filtered set changes
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, favOn, syncSel, healthSel, sortKey]);
+  }, [
+    search,
+    favOn,
+    syncSel,
+    healthSel,
+    projectSel,
+    namespaceSel,
+    labelFilters,
+    sortKey,
+  ]);
 
   // Paginated slice passed to FlatList
   const visibleApps = useMemo(
@@ -708,13 +942,22 @@ export default function AppsScreen() {
   const hasMore = visibleCount < filteredSortedApps.length;
 
   const hasFilters =
-    search !== "" || favOn || syncSel.length > 0 || healthSel.length > 0;
+    search !== "" ||
+    favOn ||
+    syncSel.length > 0 ||
+    healthSel.length > 0 ||
+    projectSel.length > 0 ||
+    namespaceSel.length > 0 ||
+    labelFilters.length > 0;
 
   const clearAll = useCallback(() => {
     setSearch("");
     setFavOn(false);
     setSyncSel([]);
     setHealthSel([]);
+    setProjectSel([]);
+    setNamespaceSel([]);
+    setLabelFilters([]);
     setOpenGroup(null);
   }, []);
 
@@ -852,89 +1095,201 @@ export default function AppsScreen() {
               }}
             />
           )}
+
+          {projectSel.length === 0 ? (
+            <DropdownChip
+              label="Project"
+              open={openGroup === "projects"}
+              onPress={() =>
+                setOpenGroup((g) => (g === "projects" ? null : "projects"))
+              }
+            />
+          ) : (
+            <ActivePill
+              label={
+                projectSel.length === 1
+                  ? projectSel[0]
+                  : `Project · ${projectSel.length}`
+              }
+              accent="#7DA9F1"
+              onPress={() =>
+                setOpenGroup((g) => (g === "projects" ? null : "projects"))
+              }
+              onClear={() => {
+                setProjectSel([]);
+                setOpenGroup(null);
+              }}
+            />
+          )}
+
+          {namespaceSel.length === 0 ? (
+            <DropdownChip
+              label="Namespace"
+              open={openGroup === "namespaces"}
+              onPress={() =>
+                setOpenGroup((g) => (g === "namespaces" ? null : "namespaces"))
+              }
+            />
+          ) : (
+            <ActivePill
+              label={
+                namespaceSel.length === 1
+                  ? namespaceSel[0]
+                  : `Namespace · ${namespaceSel.length}`
+              }
+              accent="#B79CFF"
+              onPress={() =>
+                setOpenGroup((g) => (g === "namespaces" ? null : "namespaces"))
+              }
+              onClear={() => {
+                setNamespaceSel([]);
+                setOpenGroup(null);
+              }}
+            />
+          )}
+
+          {labelFilters.length === 0 ? (
+            <DropdownChip
+              label="Labels"
+              open={openGroup === "labels"}
+              onPress={() =>
+                setOpenGroup((g) => (g === "labels" ? null : "labels"))
+              }
+            />
+          ) : (
+            <ActivePill
+              icon={
+                <Ionicons
+                  name="pricetag-outline"
+                  size={11}
+                  color={LABEL_ACCENT}
+                />
+              }
+              label={`Labels · ${labelFilters.length}`}
+              accent={LABEL_ACCENT}
+              onPress={() =>
+                setOpenGroup((g) => (g === "labels" ? null : "labels"))
+              }
+              onClear={() => {
+                setLabelFilters([]);
+                setOpenGroup(null);
+              }}
+            />
+          )}
         </ScrollView>
 
         {/* Expansion strip */}
         {openGroup !== null && (
           <View style={styles.expansionStrip}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.expansionRail}
-              keyboardShouldPersistTaps="handled"
-            >
-              {(openGroup === "sync"
-                ? ["Synced", "OutOfSync", "Unknown"]
-                : [
-                    "Healthy",
-                    "Progressing",
-                    "Degraded",
-                    "Missing",
-                    "Suspended",
-                    "Unknown",
-                  ]
-              ).map((v) => {
-                const t = openGroup === "sync" ? getSync(v) : getHealth(v);
-                const sel = openGroup === "sync" ? syncSel : healthSel;
-                const on = sel.includes(v);
-                const cnt =
-                  openGroup === "sync"
-                    ? (syncCounts[v] ?? 0)
-                    : (healthCounts[v] ?? 0);
-                return (
-                  <TouchableOpacity
-                    key={v}
-                    onPress={() => {
-                      if (openGroup === "sync") {
-                        setSyncSel((prev) =>
+            {openGroup === "labels" ? (
+              <LabelExpansion
+                filters={labelFilters}
+                labelMap={availableLabelMap}
+                onAdd={addLabelFilter}
+                onRemove={removeLabelFilter}
+              />
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.expansionRail}
+                keyboardShouldPersistTaps="handled"
+              >
+                {(openGroup === "sync"
+                  ? ["Synced", "OutOfSync", "Unknown"]
+                  : openGroup === "health"
+                    ? [
+                        "Healthy",
+                        "Progressing",
+                        "Degraded",
+                        "Missing",
+                        "Suspended",
+                        "Unknown",
+                      ]
+                    : openGroup === "projects"
+                      ? availableProjects
+                      : availableNamespaces
+                ).map((v) => {
+                  const isStatus =
+                    openGroup === "sync" || openGroup === "health";
+                  const t = isStatus
+                    ? openGroup === "sync"
+                      ? getSync(v)
+                      : getHealth(v)
+                    : null;
+                  const accent =
+                    openGroup === "projects" ? "#7DA9F1" : "#B79CFF";
+                  const chipColor = t ? t.color : accent;
+                  const sel =
+                    openGroup === "sync"
+                      ? syncSel
+                      : openGroup === "health"
+                        ? healthSel
+                        : openGroup === "projects"
+                          ? projectSel
+                          : namespaceSel;
+                  const cnt =
+                    openGroup === "sync"
+                      ? (syncCounts[v] ?? 0)
+                      : openGroup === "health"
+                        ? (healthCounts[v] ?? 0)
+                        : openGroup === "projects"
+                          ? (projectCounts[v] ?? 0)
+                          : (namespaceCounts[v] ?? 0);
+                  const on = sel.includes(v);
+                  return (
+                    <TouchableOpacity
+                      key={v}
+                      onPress={() => {
+                        const toggle = (prev: string[]) =>
                           prev.includes(v)
                             ? prev.filter((x) => x !== v)
-                            : [...prev, v],
-                        );
-                      } else {
-                        setHealthSel((prev) =>
-                          prev.includes(v)
-                            ? prev.filter((x) => x !== v)
-                            : [...prev, v],
-                        );
-                      }
-                    }}
-                    style={[
-                      styles.expansionChip,
-                      {
-                        backgroundColor: on
-                          ? t.color + "24"
-                          : "rgba(255,255,255,0.05)",
-                        borderColor: on ? t.color + "88" : colors.hairline,
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={t.icon}
-                      size={10}
-                      color={on ? t.color : colors.muted}
-                    />
-                    <Text
+                            : [...prev, v];
+                        if (openGroup === "sync") setSyncSel(toggle);
+                        else if (openGroup === "health") setHealthSel(toggle);
+                        else if (openGroup === "projects")
+                          setProjectSel(toggle);
+                        else setNamespaceSel(toggle);
+                      }}
                       style={[
-                        styles.expansionChipText,
-                        { color: on ? t.color : colors.text },
+                        styles.expansionChip,
+                        {
+                          backgroundColor: on
+                            ? chipColor + "24"
+                            : "rgba(255,255,255,0.05)",
+                          borderColor: on ? chipColor + "88" : colors.hairline,
+                        },
                       ]}
+                      activeOpacity={0.7}
                     >
-                      {v}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.expansionChipCount,
-                        { color: on ? t.color : colors.faint },
-                      ]}
-                    >
-                      {cnt}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                      {t && (
+                        <Ionicons
+                          name={t.icon}
+                          size={10}
+                          color={on ? t.color : colors.muted}
+                        />
+                      )}
+                      <Text
+                        style={[
+                          styles.expansionChipText,
+                          { color: on ? chipColor : colors.text },
+                        ]}
+                      >
+                        {v}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.expansionChipCount,
+                          { color: on ? chipColor : colors.faint },
+                        ]}
+                      >
+                        {cnt}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
         )}
 
@@ -955,11 +1310,21 @@ export default function AppsScreen() {
       isLoading,
       healthCounts,
       syncCounts,
+      projectCounts,
+      namespaceCounts,
+      availableProjects,
+      availableNamespaces,
+      availableLabelMap,
       search,
       favOn,
       syncSel,
       healthSel,
+      projectSel,
+      namespaceSel,
+      labelFilters,
       openGroup,
+      addLabelFilter,
+      removeLabelFilter,
     ],
   );
 
@@ -1231,6 +1596,71 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "500",
     opacity: 0.65,
+  },
+
+  // Label expansion
+  labelExpansion: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  labelFiltersRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingBottom: 4,
+  },
+  labelFilterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "#5CD1A020",
+    borderWidth: 1,
+    borderColor: "#5CD1A060",
+  },
+  labelFilterText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: "#5CD1A0",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  labelInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    height: 34,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: 8,
+  },
+  labelInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    padding: 0,
+    margin: 0,
+  },
+  labelSuggestRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingTop: 4,
+  },
+  labelSuggestChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  labelSuggestText: {
+    fontSize: 11.5,
+    color: colors.text,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 
   // List
