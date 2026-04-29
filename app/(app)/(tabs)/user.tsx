@@ -2,6 +2,7 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -90,9 +91,11 @@ export default function UserScreen() {
         style={[s.header, { paddingTop: insets.top }]}
       >
         <View style={s.headerContent}>
-          <View style={s.avatarCircle}>
-            <Ionicons name="person" size={28} color={colors.orange} />
-          </View>
+          <Image
+            source={require("../../../assets/argo-mascot.png")}
+            style={s.mascot}
+            resizeMode="contain"
+          />
           {isLoading ? (
             <ActivityIndicator color={colors.orange} style={{ marginTop: 8 }} />
           ) : (
@@ -177,15 +180,9 @@ const s = StyleSheet.create({
     paddingTop: 20,
     gap: 8,
   },
-  avatarCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(239,123,77,0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(239,123,77,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
+  mascot: {
+    width: 80,
+    height: 80,
   },
   username: {
     fontSize: 22,
