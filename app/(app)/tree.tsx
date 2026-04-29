@@ -31,6 +31,13 @@ import {
   ResourceDetailSheet,
   type ResourceDetailRef,
 } from "../../components/resource-detail-sheet";
+import {
+  applyResourceFilter,
+  EMPTY_RESOURCE_FILTER,
+  ResourceFilterSheet,
+  resourceFilterCount,
+  type ResourceFilterState,
+} from "../../components/resource-filter";
 
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
 const INDENT = 18;
@@ -209,6 +216,10 @@ export default function TreeScreen() {
     useState<ResourceDetailRef | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const initializedRef = useRef(false);
+  const [filterState, setFilterState] = useState<ResourceFilterState>(
+    EMPTY_RESOURCE_FILTER,
+  );
+  const [showFilter, setShowFilter] = useState(false);
 
   const { data: treeData, isLoading } = useQuery({
     queryKey: queryKeys.resourceTree(client.serverUrl, namespace, name),
@@ -218,6 +229,33 @@ export default function TreeScreen() {
 
   const treeNodes = useMemo(() => treeData?.nodes ?? [], [treeData?.nodes]);
 
+  const activeFilterCount = resourceFilterCount(filterState);
+
+  const allKinds = useMemo(
+    () => [...new Set(treeNodes.map((n) => n.kind))].sort(),
+    [treeNodes],
+  );
+
+  const allNamespaces = useMemo(
+    () =>
+      [
+        ...new Set(
+          treeNodes.map((n) => n.namespace).filter(Boolean) as string[],
+        ),
+      ].sort(),
+    [treeNodes],
+  );
+
+  const filteredNodes = useMemo(
+    () =>
+      activeFilterCount > 0
+        ? applyResourceFilter(treeNodes, filterState)
+        : treeNodes,
+    [treeNodes, filterState, activeFilterCount],
+  );
+
+  // childMap and rootNodes always built from the full unfiltered tree
+  // so defaultExpanded can walk the real tree shape
   const { childMap, rootNodes } = useMemo(() => {
     const map = new Map<string, ResourceNode[]>();
     for (const node of treeNodes) {
@@ -233,6 +271,31 @@ export default function TreeScreen() {
     );
     return { childMap: map, rootNodes: roots };
   }, [treeNodes]);
+
+  // When filter active, rebuild tree from matched nodes only
+  const { activeChildMap, activeRootNodes } = useMemo(() => {
+    if (activeFilterCount === 0)
+      return { activeChildMap: childMap, activeRootNodes: rootNodes };
+
+    const inSet = new Set(
+      filteredNodes.map((n) => n.uid).filter(Boolean) as string[],
+    );
+    const map = new Map<string, ResourceNode[]>();
+    for (const node of filteredNodes) {
+      for (const ref of node.parentRefs ?? []) {
+        if (!ref.uid) continue;
+        const arr = map.get(ref.uid);
+        if (arr) arr.push(node);
+        else map.set(ref.uid, [node]);
+      }
+    }
+    const roots = filteredNodes.filter(
+      (n) =>
+        !n.parentRefs?.length ||
+        n.parentRefs.every((ref) => !ref.uid || !inSet.has(ref.uid)),
+    );
+    return { activeChildMap: map, activeRootNodes: roots };
+  }, [filteredNodes, activeFilterCount, childMap, rootNodes]);
 
   const defaultExpanded = useMemo(() => {
     const set = new Set<string>();
@@ -285,9 +348,19 @@ export default function TreeScreen() {
 
   const collapseAll = useCallback(() => setExpanded(new Set()), []);
 
+  // When filter active, expand all matched nodes automatically
+  const expandedForRender = useMemo(() => {
+    if (activeFilterCount > 0) {
+      const all = new Set<string>();
+      for (const n of filteredNodes) all.add(nodeUid(n));
+      return all;
+    }
+    return expanded;
+  }, [activeFilterCount, filteredNodes, expanded]);
+
   const flatItems = useMemo(
-    () => flattenTree(rootNodes, childMap, expanded),
-    [rootNodes, childMap, expanded],
+    () => flattenTree(activeRootNodes, activeChildMap, expandedForRender),
+    [activeRootNodes, activeChildMap, expandedForRender],
   );
 
   const openDetail = useCallback((node: ResourceNode) => {
@@ -339,6 +412,25 @@ export default function TreeScreen() {
             >
               <Text style={styles.headerBtnText}>Collapse</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowFilter(true)}
+              style={[
+                styles.headerBtn,
+                activeFilterCount > 0 && styles.headerBtnActive,
+              ]}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="filter"
+                size={11}
+                color={activeFilterCount > 0 ? colors.orange : colors.text}
+              />
+              {activeFilterCount > 0 && (
+                <Text style={[styles.headerBtnText, { color: colors.orange }]}>
+                  {activeFilterCount}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -348,8 +440,10 @@ export default function TreeScreen() {
             {name}
           </Text>
           <Text style={styles.headerHint}>
-            {treeNodes.length} resources · tap to expand · long press for
-            details
+            {activeFilterCount > 0
+              ? `${filteredNodes.length} of ${treeNodes.length} resources`
+              : `${treeNodes.length} resources`}{" "}
+            · tap to expand · long press for details
           </Text>
         </View>
       </LinearGradient>
@@ -392,6 +486,15 @@ export default function TreeScreen() {
         appName={name}
         appNamespace={namespace}
         resource={detailResource}
+      />
+
+      <ResourceFilterSheet
+        visible={showFilter}
+        onClose={() => setShowFilter(false)}
+        state={filterState}
+        setState={setFilterState}
+        allKinds={allKinds}
+        allNamespaces={allNamespaces}
       />
     </View>
   );
@@ -438,12 +541,19 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   headerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderColor: colors.hairline,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 7,
+  },
+  headerBtnActive: {
+    backgroundColor: "rgba(239,123,77,0.12)",
+    borderColor: "rgba(239,123,77,0.40)",
   },
   headerBtnText: {
     fontSize: 11,

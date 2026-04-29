@@ -28,6 +28,13 @@ import {
   ResourceDetailSheet,
   type ResourceDetailRef,
 } from "../../components/resource-detail-sheet";
+import {
+  applyResourceFilter,
+  EMPTY_RESOURCE_FILTER,
+  ResourceFilterSheet,
+  resourceFilterCount,
+  type ResourceFilterState,
+} from "../../components/resource-filter";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -331,6 +338,10 @@ export default function AppDetailsScreen() {
   const watchingRef = useRef(false);
   const [syncSheetOpen, setSyncSheetOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [resourceFilter, setResourceFilter] = useState<ResourceFilterState>(
+    EMPTY_RESOURCE_FILTER,
+  );
+  const [showResourceFilter, setShowResourceFilter] = useState(false);
 
   const queryKey = queryKeys.application(client.serverUrl, namespace, name);
   const [treeSheet, setTreeSheet] = useState<{
@@ -440,31 +451,60 @@ export default function AppDetailsScreen() {
   const opToken = opPhase ? getOperationPhase(opPhase) : null;
   const revision = opState?.syncResult?.revision ?? app?.status?.sync?.revision;
 
+  const allResourceKinds = useMemo(
+    () =>
+      [
+        ...new Set(
+          (app?.status?.resources ?? [])
+            .filter((r) => !r.hook)
+            .map((r) => r.kind),
+        ),
+      ].sort(),
+    [app?.status?.resources],
+  );
+
+  const allResourceNamespaces = useMemo(
+    () =>
+      [
+        ...new Set(
+          (app?.status?.resources ?? [])
+            .filter((r) => !r.hook && !!r.namespace)
+            .map((r) => r.namespace as string),
+        ),
+      ].sort(),
+    [app?.status?.resources],
+  );
+
+  const resourceFilterActiveCount = resourceFilterCount(resourceFilter);
+
   // Group resources by group+kind, sorted by kind then name
   const resourceGroups = useMemo(() => {
     if (!app?.status?.resources) return [];
-    const sorted = [...app.status.resources]
-      .filter((r) => !r.hook)
-      .sort((a, b) => {
-        const ka = kindLabel(a.group, a.kind);
-        const kb = kindLabel(b.group, b.kind);
-        return ka.localeCompare(kb) || a.name.localeCompare(b.name);
-      });
+    const base = applyResourceFilter(
+      [...app.status.resources].filter((r) => !r.hook),
+      resourceFilter,
+    ).sort((a, b) => {
+      const ka = kindLabel(a.group, a.kind);
+      const kb = kindLabel(b.group, b.kind);
+      return ka.localeCompare(kb) || a.name.localeCompare(b.name);
+    });
     const groups: Map<
       string,
       { group?: string; kind: string; items: ResourceItem[] }
     > = new Map();
-    for (const r of sorted) {
+    for (const r of base) {
       const key = kindLabel(r.group, r.kind);
       if (!groups.has(key))
         groups.set(key, { group: r.group, kind: r.kind, items: [] });
       groups.get(key)!.items.push(r);
     }
     return Array.from(groups.values());
-  }, [app?.status?.resources]);
+  }, [app?.status?.resources, resourceFilter]);
 
-  const totalResources =
-    app?.status?.resources?.filter((r) => !r.hook).length ?? 0;
+  const totalResources = resourceGroups.reduce(
+    (sum, g) => sum + g.items.length,
+    0,
+  );
   const images = app?.status?.summary?.images ?? [];
   const externalURLs = app?.status?.summary?.externalURLs ?? [];
 
@@ -676,27 +716,53 @@ export default function AppDetailsScreen() {
           )}
 
           {/* Resources */}
-          {resourceGroups.length > 0 && (
+          {(resourceGroups.length > 0 || resourceFilterActiveCount > 0) && (
             <Section
               title={`RESOURCES · ${totalResources}`}
               action={
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push(
-                      `/(app)/tree?name=${encodeURIComponent(name)}&namespace=${encodeURIComponent(namespace)}`,
-                    )
-                  }
-                  style={styles.treeBtn}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Ionicons
-                    name="git-network-outline"
-                    size={12}
-                    color={colors.orange}
-                  />
-                  <Text style={styles.treeBtnText}>Tree</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setShowResourceFilter(true)}
+                    style={[
+                      styles.treeBtn,
+                      resourceFilterActiveCount > 0 && styles.treeBtnActive,
+                    ]}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons
+                      name="filter"
+                      size={12}
+                      color={
+                        resourceFilterActiveCount > 0
+                          ? colors.orange
+                          : colors.muted
+                      }
+                    />
+                    {resourceFilterActiveCount > 0 && (
+                      <Text style={styles.treeBtnText}>
+                        {resourceFilterActiveCount}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      router.push(
+                        `/(app)/tree?name=${encodeURIComponent(name)}&namespace=${encodeURIComponent(namespace)}`,
+                      )
+                    }
+                    style={styles.treeBtn}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons
+                      name="git-network-outline"
+                      size={12}
+                      color={colors.orange}
+                    />
+                    <Text style={styles.treeBtnText}>Tree</Text>
+                  </TouchableOpacity>
+                </View>
               }
             >
               {resourceGroups.map((g, gi) => (
@@ -833,6 +899,15 @@ export default function AppDetailsScreen() {
         appName={name}
         appNamespace={namespace}
         resource={detailResource}
+      />
+
+      <ResourceFilterSheet
+        visible={showResourceFilter}
+        onClose={() => setShowResourceFilter(false)}
+        state={resourceFilter}
+        setState={setResourceFilter}
+        allKinds={allResourceKinds}
+        allNamespaces={allResourceNamespaces}
       />
     </View>
   );
@@ -1043,9 +1118,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 7,
-    backgroundColor: "rgba(239,123,77,0.10)",
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
-    borderColor: "rgba(239,123,77,0.28)",
+    borderColor: colors.hairline,
+  },
+  treeBtnActive: {
+    backgroundColor: "rgba(239,123,77,0.10)",
+    borderColor: "rgba(239,123,77,0.40)",
   },
   treeBtnText: {
     fontSize: 11,
