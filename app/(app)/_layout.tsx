@@ -5,6 +5,7 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query";
 import { ArgoClientProvider } from "../../lib/client";
+import { ResourceFilterProvider } from "../../components/resource-filter";
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
@@ -27,7 +28,9 @@ export default function AppLayout() {
   return (
     <ArgoClientProvider>
       <QueryClientProvider client={queryClient}>
-        <Stack screenOptions={{ headerShown: false }} />
+        <ResourceFilterProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </ResourceFilterProvider>
       </QueryClientProvider>
     </ArgoClientProvider>
   );

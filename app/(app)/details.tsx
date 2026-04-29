@@ -30,10 +30,9 @@ import {
 } from "../../components/resource-detail-sheet";
 import {
   applyResourceFilter,
-  EMPTY_RESOURCE_FILTER,
   ResourceFilterSheet,
   resourceFilterCount,
-  type ResourceFilterState,
+  useResourceFilter,
 } from "../../components/resource-filter";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -338,9 +337,8 @@ export default function AppDetailsScreen() {
   const watchingRef = useRef(false);
   const [syncSheetOpen, setSyncSheetOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [resourceFilter, setResourceFilter] = useState<ResourceFilterState>(
-    EMPTY_RESOURCE_FILTER,
-  );
+  const { filter: resourceFilter, setFilter: setResourceFilter } =
+    useResourceFilter();
   const [showResourceFilter, setShowResourceFilter] = useState(false);
 
   const queryKey = queryKeys.application(client.serverUrl, namespace, name);

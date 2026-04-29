@@ -33,10 +33,9 @@ import {
 } from "../../components/resource-detail-sheet";
 import {
   applyResourceFilter,
-  EMPTY_RESOURCE_FILTER,
   ResourceFilterSheet,
   resourceFilterCount,
-  type ResourceFilterState,
+  useResourceFilter,
 } from "../../components/resource-filter";
 
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -216,9 +215,8 @@ export default function TreeScreen() {
     useState<ResourceDetailRef | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const initializedRef = useRef(false);
-  const [filterState, setFilterState] = useState<ResourceFilterState>(
-    EMPTY_RESOURCE_FILTER,
-  );
+  const { filter: filterState, setFilter: setFilterState } =
+    useResourceFilter();
   const [showFilter, setShowFilter] = useState(false);
 
   const { data: treeData, isLoading } = useQuery({

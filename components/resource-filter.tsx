@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState } from "react";
 import {
   Dimensions,
   Modal,
@@ -42,6 +42,37 @@ export function resourceFilterCount(f: ResourceFilterState): number {
     f.health.length +
     f.namespaces.length
   );
+}
+
+// ── Shared context (lifted to layout so details + tree share state) ────────
+
+interface ResourceFilterCtx {
+  filter: ResourceFilterState;
+  setFilter: React.Dispatch<React.SetStateAction<ResourceFilterState>>;
+}
+
+const ResourceFilterContext = createContext<ResourceFilterCtx>({
+  filter: EMPTY_RESOURCE_FILTER,
+  setFilter: () => {},
+});
+
+export function ResourceFilterProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [filter, setFilter] = useState<ResourceFilterState>(
+    EMPTY_RESOURCE_FILTER,
+  );
+  return (
+    <ResourceFilterContext.Provider value={{ filter, setFilter }}>
+      {children}
+    </ResourceFilterContext.Provider>
+  );
+}
+
+export function useResourceFilter(): ResourceFilterCtx {
+  return useContext(ResourceFilterContext);
 }
 
 // ── Glob matching ──────────────────────────────────────────────
