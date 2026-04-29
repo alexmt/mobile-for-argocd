@@ -612,7 +612,10 @@ export default function AppDetailsScreen() {
                 {
                   icon: "time-outline" as const,
                   label: "History",
-                  onPress: undefined,
+                  onPress: () =>
+                    router.push(
+                      `/(app)/history?name=${encodeURIComponent(name)}&namespace=${encodeURIComponent(namespace)}`,
+                    ),
                   loading: false,
                   disabled: false,
                 },

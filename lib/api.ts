@@ -58,6 +58,17 @@ export function ssoLoginUrl(serverUrl: string): string {
 
 // ── Application model ─────────────────────────────────────────
 
+export interface RevisionHistory {
+  id: number;
+  revision?: string;
+  revisions?: string[];
+  source?: AppSource;
+  sources?: AppSource[];
+  deployStartedAt?: string;
+  deployedAt: string;
+  initiatedBy?: { username?: string; automated?: boolean };
+}
+
 export interface AppSource {
   repoURL: string;
   targetRevision?: string;
@@ -119,6 +130,7 @@ export interface Application {
       requiresPruning?: boolean;
       syncWave?: number;
     }[];
+    history?: RevisionHistory[];
     conditions?: {
       type: string;
       message: string;
@@ -156,6 +168,7 @@ const APP_FIELDS = [
   "status.operationState.operation.sync",
   "status.summary",
   "status.resources",
+  "status.history",
 ];
 
 const LIST_FIELDS = [
@@ -249,6 +262,31 @@ export async function syncApplication(
           ? { items: opts.syncOptions }
           : null,
       }),
+    },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as Record<string, string>;
+    throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  }
+}
+
+export async function rollbackApplication(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+  id: number,
+): Promise<void> {
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}/rollback`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id, appNamespace: namespace }),
     },
   );
   if (res.status === 401) throw new Error("Unauthorized");

@@ -8,6 +8,7 @@ import {
   getResourceTree,
   listApplications,
   refreshApplication,
+  rollbackApplication,
   streamLogs,
   syncApplication,
   watchApplication,
@@ -56,6 +57,10 @@ export class ArgoClient {
     opts: SyncApplicationOptions = {},
   ) {
     return syncApplication(this.serverUrl, this.token, name, namespace, opts);
+  }
+
+  rollbackApplication(name: string, namespace: string, id: number) {
+    return rollbackApplication(this.serverUrl, this.token, name, namespace, id);
   }
 
   watchApplication(
