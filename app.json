@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ArgoCD Mobile",
+    "name": "Argo CD",
     "slug": "mobile-for-argocd",
     "scheme": "argocd",
     "version": "1.0.0",
