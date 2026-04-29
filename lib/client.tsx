@@ -6,6 +6,7 @@ import {
   getManagedResources,
   getResource,
   getResourceTree,
+  getUserInfo,
   listApplications,
   refreshApplication,
   rollbackApplication,
@@ -16,6 +17,7 @@ import {
   type Application,
   type LogEntry,
   type SyncApplicationOptions,
+  type UserInfo,
 } from "./api";
 import { serverStorage, tokenStorage } from "./storage";
 
@@ -61,6 +63,10 @@ export class ArgoClient {
 
   rollbackApplication(name: string, namespace: string, id: number) {
     return rollbackApplication(this.serverUrl, this.token, name, namespace, id);
+  }
+
+  getUserInfo(): Promise<UserInfo> {
+    return getUserInfo(this.serverUrl, this.token);
   }
 
   watchApplication(

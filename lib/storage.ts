@@ -6,6 +6,7 @@ const TOKEN_KEY = "argocd:token";
 export const serverStorage = {
   get: () => AsyncStorage.getItem(SERVER_URL_KEY),
   set: (url: string) => AsyncStorage.setItem(SERVER_URL_KEY, url),
+  clear: () => AsyncStorage.removeItem(SERVER_URL_KEY),
 };
 
 export const tokenStorage = {

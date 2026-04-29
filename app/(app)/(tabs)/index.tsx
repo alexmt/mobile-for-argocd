@@ -23,12 +23,12 @@ import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors } from "../../lib/theme";
-import { appKey, appSource, type Application } from "../../lib/api";
-import { favoritesStorage } from "../../lib/storage";
-import { useArgoClient } from "../../lib/client";
-import { queryKeys } from "../../lib/query-keys";
-import { getHealth, getSync, healthSeverity } from "../../lib/status";
+import { colors } from "../../../lib/theme";
+import { appKey, appSource, type Application } from "../../../lib/api";
+import { favoritesStorage } from "../../../lib/storage";
+import { useArgoClient } from "../../../lib/client";
+import { queryKeys } from "../../../lib/query-keys";
+import { getHealth, getSync, healthSeverity } from "../../../lib/status";
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -606,19 +606,6 @@ function FilterRow({
   );
 }
 
-// ── Tab bar ───────────────────────────────────────────────────
-function TabBar() {
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 4 }]}>
-      <View style={styles.tabItem}>
-        <Ionicons name="grid" size={22} color={colors.orange} />
-        <Text style={[styles.tabLabel, { color: colors.orange }]}>Apps</Text>
-      </View>
-    </View>
-  );
-}
-
 // ── Empty state ────────────────────────────────────────────────
 function EmptyState({
   hasFilters,
@@ -1006,16 +993,11 @@ export default function AppsScreen() {
       <View style={[styles.header, { paddingTop: insets.top }]}>
         {/* Nav row */}
         <View style={styles.navRow}>
-          <TouchableOpacity
-            onPress={() => router.replace("/login")}
-            style={styles.serverBtn}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={18} color={colors.orange} />
+          <View style={styles.serverBtn}>
             <Text style={styles.serverName} numberOfLines={1}>
               {serverName}
             </Text>
-          </TouchableOpacity>
+          </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.iconBtn}
@@ -1095,7 +1077,6 @@ export default function AppsScreen() {
       chip,
       chipCounts,
       activeFilterCount,
-      router,
     ],
   );
 
@@ -1162,8 +1143,6 @@ export default function AppsScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       />
-
-      <TabBar />
 
       <SortSheet
         visible={showSort}
@@ -1453,30 +1432,6 @@ const styles = StyleSheet.create({
   metaMono: {
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     fontSize: 11,
-  },
-
-  // Tab bar
-  tabBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    backgroundColor: "rgba(14,18,38,0.92)",
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
-    paddingTop: 6,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 3,
-    paddingVertical: 4,
-  },
-  tabLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    letterSpacing: 0.2,
   },
 
   // Error banner

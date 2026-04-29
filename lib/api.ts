@@ -1,3 +1,22 @@
+export interface UserInfo {
+  loggedIn: boolean;
+  username: string;
+  iss: string;
+  groups?: string[];
+}
+
+export async function getUserInfo(
+  serverUrl: string,
+  token: string,
+): Promise<UserInfo> {
+  const res = await fetch(`${serverUrl}/api/v1/session/userinfo`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<UserInfo>;
+}
+
 export interface AuthSettings {
   dexConfig?: {
     connectors?: { id: string; name: string; type: string }[];
