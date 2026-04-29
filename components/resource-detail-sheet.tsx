@@ -734,7 +734,7 @@ function LogsTabContent({
     const cs = extractContainersFromSpec(spec);
     setContainers(cs);
     setContainer((prev) => prev || cs[0] || "");
-  }, [liveObj]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liveObj]);
 
   useEffect(() => {
     const timer = setInterval(() => {
