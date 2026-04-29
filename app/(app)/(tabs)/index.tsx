@@ -221,24 +221,6 @@ function HealthBar({ counts }: { counts: Record<string, number> }) {
   );
 }
 
-function HealthLegend({ counts }: { counts: Record<string, number> }) {
-  const entries = Object.entries(counts).filter(([, n]) => n > 0);
-  if (!entries.length) return null;
-  return (
-    <View style={styles.legendRow}>
-      {entries.map(([k, n]) => (
-        <View key={k} style={styles.legendItem}>
-          <View
-            style={[styles.legendDot, { backgroundColor: getHealth(k).color }]}
-          />
-          <Text style={styles.legendText}>{k}</Text>
-          <Text style={styles.legendCount}>{n}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 // ── Search field ───────────────────────────────────────────────
 function SearchField({
   value,
@@ -270,69 +252,100 @@ function SearchField({
   );
 }
 
-// ── Chip rail ─────────────────────────────────────────────────
-interface Chip {
-  key: string;
-  label: string;
-  icon?: React.ReactNode;
-  accent?: string;
+// ── Filter pill components ────────────────────────────────────
+
+function FavChip({ on, onPress }: { on: boolean; onPress: () => void }) {
+  const accent = "#F2C94C";
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[
+        styles.filterPill,
+        {
+          backgroundColor: on ? accent + "24" : "rgba(255,255,255,0.05)",
+          borderColor: on ? accent + "88" : colors.hairline,
+        },
+      ]}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name={on ? "star" : "star-outline"}
+        size={14}
+        color={on ? accent : colors.muted}
+      />
+    </TouchableOpacity>
+  );
 }
 
-function ChipRail({
-  chips,
-  active,
-  onChange,
-  counts,
+function DropdownChip({
+  label,
+  open,
+  onPress,
 }: {
-  chips: Chip[];
-  active: string;
-  onChange: (k: string) => void;
-  counts: Record<string, number>;
+  label: string;
+  open: boolean;
+  onPress: () => void;
 }) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.chipRail}
-      keyboardShouldPersistTaps="handled"
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.filterPill}
+      activeOpacity={0.7}
     >
-      {chips.map((c) => {
-        const on = active === c.key;
-        const accent = c.accent ?? colors.orange;
-        const count = counts[c.key];
-        return (
-          <TouchableOpacity
-            key={c.key}
-            onPress={() => onChange(c.key)}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: on ? `${accent}26` : "rgba(255,255,255,0.05)",
-                borderColor: on ? accent : colors.hairline,
-              },
-            ]}
-            activeOpacity={0.7}
-          >
-            {c.icon}
-            <Text
-              style={[styles.chipText, { color: on ? accent : colors.text }]}
-            >
-              {c.label}
-            </Text>
-            {count != null && (
-              <Text
-                style={[
-                  styles.chipCount,
-                  { color: on ? accent : colors.muted },
-                ]}
-              >
-                {count}
-              </Text>
-            )}
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+      <Text style={styles.filterPillText}>{label}</Text>
+      <Ionicons
+        name={open ? "chevron-up" : "chevron-down"}
+        size={11}
+        color={colors.muted}
+      />
+    </TouchableOpacity>
+  );
+}
+
+function ActivePill({
+  icon,
+  label,
+  count,
+  accent,
+  onPress,
+  onClear,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  count?: number;
+  accent: string;
+  onPress: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.activePill,
+        { backgroundColor: accent + "24", borderColor: accent + "66" },
+      ]}
+    >
+      <TouchableOpacity
+        onPress={onPress}
+        style={styles.activePillLeft}
+        activeOpacity={0.7}
+      >
+        {icon}
+        <Text style={[styles.activePillLabel, { color: accent }]}>{label}</Text>
+        {count != null && (
+          <Text style={[styles.activePillCount, { color: accent }]}>
+            {count}
+          </Text>
+        )}
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={onClear}
+        style={styles.activePillClear}
+        hitSlop={{ top: 6, bottom: 6, left: 0, right: 6 }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="close" size={10} color={accent} />
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -445,167 +458,6 @@ function SortSheet({
   );
 }
 
-// ── Filter sheet ───────────────────────────────────────────────
-export interface FilterState {
-  health: string[];
-  sync: string[];
-  autoSync: string[];
-}
-
-function FilterSheet({
-  visible,
-  onClose,
-  state,
-  setState,
-  counts,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  state: FilterState;
-  setState: React.Dispatch<React.SetStateAction<FilterState>>;
-  counts: { health: Record<string, number>; sync: Record<string, number> };
-}) {
-  const toggle = (group: keyof FilterState, key: string) => {
-    setState((s) => {
-      const arr = s[group];
-      const next = arr.includes(key)
-        ? arr.filter((k) => k !== key)
-        : [...arr, key];
-      return { ...s, [group]: next };
-    });
-  };
-  const on = (group: keyof FilterState, key: string) =>
-    state[group].includes(key);
-  const hasFilters =
-    state.health.length > 0 ||
-    state.sync.length > 0 ||
-    state.autoSync.length > 0;
-
-  return (
-    <BottomSheet
-      visible={visible}
-      onClose={onClose}
-      title="Filters"
-      height={540}
-    >
-      <View style={styles.filterSection}>
-        <Text style={styles.filterGroupLabel}>Health status</Text>
-        <View style={styles.filterCard}>
-          {(
-            [
-              "Healthy",
-              "Progressing",
-              "Suspended",
-              "Degraded",
-              "Missing",
-              "Unknown",
-            ] as const
-          ).map((k, i, arr) => (
-            <FilterRow
-              key={k}
-              icon={
-                <Ionicons
-                  name={getHealth(k).icon}
-                  size={14}
-                  color={getHealth(k).color}
-                />
-              }
-              label={k}
-              count={counts.health[k]}
-              on={on("health", k)}
-              onToggle={() => toggle("health", k)}
-              last={i === arr.length - 1}
-            />
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.filterSection}>
-        <Text style={styles.filterGroupLabel}>Sync status</Text>
-        <View style={styles.filterCard}>
-          {(["Synced", "OutOfSync", "Unknown"] as const).map((k, i, arr) => (
-            <FilterRow
-              key={k}
-              icon={
-                <Ionicons
-                  name={getSync(k).icon}
-                  size={14}
-                  color={getSync(k).color}
-                />
-              }
-              label={k}
-              count={counts.sync[k]}
-              on={on("sync", k)}
-              onToggle={() => toggle("sync", k)}
-              last={i === arr.length - 1}
-            />
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.filterSection}>
-        <Text style={styles.filterGroupLabel}>Auto sync</Text>
-        <View style={styles.filterCard}>
-          <FilterRow
-            icon={<Ionicons name="flash" size={14} color={colors.success} />}
-            label="Enabled"
-            on={on("autoSync", "enabled")}
-            onToggle={() => toggle("autoSync", "enabled")}
-          />
-          <FilterRow
-            icon={<Ionicons name="flash-off" size={14} color={colors.muted} />}
-            label="Disabled"
-            on={on("autoSync", "disabled")}
-            onToggle={() => toggle("autoSync", "disabled")}
-            last
-          />
-        </View>
-      </View>
-
-      {hasFilters && (
-        <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
-          <TouchableOpacity
-            onPress={() => setState({ health: [], sync: [], autoSync: [] })}
-            style={styles.clearBtn}
-          >
-            <Text style={styles.clearBtnText}>Clear all filters</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </BottomSheet>
-  );
-}
-
-function FilterRow({
-  icon,
-  label,
-  count,
-  on,
-  onToggle,
-  last,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  count?: number;
-  on: boolean;
-  onToggle: () => void;
-  last?: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onToggle}
-      style={[styles.filterRow, !last && styles.filterRowBorder]}
-    >
-      <View style={[styles.checkbox, on && styles.checkboxOn]}>
-        {on && <Ionicons name="checkmark" size={12} color="#fff" />}
-      </View>
-      <View style={styles.filterIcon}>{icon}</View>
-      <Text style={styles.filterRowLabel}>{label}</Text>
-      {count != null && <Text style={styles.filterCount}>{count}</Text>}
-    </TouchableOpacity>
-  );
-}
-
 // ── Empty state ────────────────────────────────────────────────
 function EmptyState({
   hasFilters,
@@ -673,15 +525,12 @@ export default function AppsScreen() {
 
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [chip, setChip] = useState("all");
+  const [favOn, setFavOn] = useState(false);
+  const [syncSel, setSyncSel] = useState<string[]>([]);
+  const [healthSel, setHealthSel] = useState<string[]>([]);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [filterState, setFilterState] = useState<FilterState>({
-    health: [],
-    sync: [],
-    autoSync: [],
-  });
   const [showSort, setShowSort] = useState(false);
-  const [showFilter, setShowFilter] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -797,7 +646,6 @@ export default function AppsScreen() {
   const filteredSortedApps = useMemo(() => {
     let list = apps;
 
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -808,38 +656,18 @@ export default function AppsScreen() {
       );
     }
 
-    // Quick chip
-    if (chip === "fav") {
-      list = list.filter((a) => favorites.has(appKey(a)));
-    } else if (chip !== "all") {
-      list = list.filter(
-        (a) =>
-          (a.status?.health?.status ?? "Unknown") === chip ||
-          (a.status?.sync?.status ?? "Unknown") === chip,
-      );
-    }
+    if (favOn) list = list.filter((a) => favorites.has(appKey(a)));
 
-    // Advanced filter
-    if (filterState.health.length > 0) {
+    if (syncSel.length > 0)
       list = list.filter((a) =>
-        filterState.health.includes(a.status?.health?.status ?? "Unknown"),
+        syncSel.includes(a.status?.sync?.status ?? "Unknown"),
       );
-    }
-    if (filterState.sync.length > 0) {
-      list = list.filter((a) =>
-        filterState.sync.includes(a.status?.sync?.status ?? "Unknown"),
-      );
-    }
-    if (filterState.autoSync.length > 0) {
-      const wantAuto = filterState.autoSync.includes("enabled");
-      const wantManual = filterState.autoSync.includes("disabled");
-      list = list.filter((a) => {
-        const auto = isAutoSync(a);
-        return (wantAuto && auto) || (wantManual && !auto);
-      });
-    }
 
-    // Sort
+    if (healthSel.length > 0)
+      list = list.filter((a) =>
+        healthSel.includes(a.status?.health?.status ?? "Unknown"),
+      );
+
     list = [...list].sort((a, b) => {
       switch (sortKey) {
         case "name":
@@ -852,7 +680,7 @@ export default function AppsScreen() {
         case "lastSync": {
           const ta = a.status?.operationState?.finishedAt ?? "";
           const tb = b.status?.operationState?.finishedAt ?? "";
-          return tb.localeCompare(ta); // most recent first
+          return tb.localeCompare(ta);
         }
         case "health":
           return (
@@ -865,12 +693,12 @@ export default function AppsScreen() {
     });
 
     return list;
-  }, [apps, search, chip, favorites, filterState, sortKey]);
+  }, [apps, search, favOn, syncSel, healthSel, favorites, sortKey]);
 
   // Reset to first page whenever the filtered set changes
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, chip, filterState, sortKey]);
+  }, [search, favOn, syncSel, healthSel, sortKey]);
 
   // Paginated slice passed to FlatList
   const visibleApps = useMemo(
@@ -879,111 +707,16 @@ export default function AppsScreen() {
   );
   const hasMore = visibleCount < filteredSortedApps.length;
 
-  // Chip config
-  const chips = useMemo<Chip[]>(
-    () => [
-      { key: "all", label: "All" },
-      { key: "fav", label: "★ Favorites", accent: "#F2C94C" },
-      {
-        key: "Degraded",
-        label: "Degraded",
-        accent: "#F25D5D",
-        icon: (
-          <Ionicons
-            name="heart-dislike"
-            size={11}
-            color="#F25D5D"
-            style={{ marginRight: 2 }}
-          />
-        ),
-      },
-      {
-        key: "OutOfSync",
-        label: "OutOfSync",
-        accent: "#F2C94C",
-        icon: (
-          <Ionicons
-            name="time"
-            size={11}
-            color="#F2C94C"
-            style={{ marginRight: 2 }}
-          />
-        ),
-      },
-      {
-        key: "Missing",
-        label: "Missing",
-        accent: "#F2C94C",
-        icon: (
-          <Ionicons
-            name="alert-circle"
-            size={11}
-            color="#F2C94C"
-            style={{ marginRight: 2 }}
-          />
-        ),
-      },
-      {
-        key: "Progressing",
-        label: "Progressing",
-        accent: "#3B96E2",
-        icon: (
-          <Ionicons
-            name="refresh-circle"
-            size={11}
-            color="#3B96E2"
-            style={{ marginRight: 2 }}
-          />
-        ),
-      },
-      {
-        key: "Healthy",
-        label: "Healthy",
-        accent: "#5CD9B0",
-        icon: (
-          <Ionicons
-            name="heart"
-            size={11}
-            color="#5CD9B0"
-            style={{ marginRight: 2 }}
-          />
-        ),
-      },
-    ],
-    [],
-  );
-
-  const chipCounts = useMemo<Record<string, number>>(() => {
-    const c: Record<string, number> = {
-      all: apps.length,
-      fav: apps.filter((a) => favorites.has(appKey(a))).length,
-    };
-    for (const [k, n] of Object.entries(healthCounts)) {
-      c[k] = (c[k] ?? 0) + n;
-    }
-    for (const [k, n] of Object.entries(syncCounts)) {
-      c[k] = (c[k] ?? 0) + n;
-    }
-    return c;
-  }, [apps, favorites, healthCounts, syncCounts]);
-
   const hasFilters =
-    search !== "" ||
-    chip !== "all" ||
-    filterState.health.length > 0 ||
-    filterState.sync.length > 0 ||
-    filterState.autoSync.length > 0;
+    search !== "" || favOn || syncSel.length > 0 || healthSel.length > 0;
 
   const clearAll = useCallback(() => {
     setSearch("");
-    setChip("all");
-    setFilterState({ health: [], sync: [], autoSync: [] });
+    setFavOn(false);
+    setSyncSel([]);
+    setHealthSel([]);
+    setOpenGroup(null);
   }, []);
-
-  const activeFilterCount =
-    filterState.health.length +
-    filterState.sync.length +
-    filterState.autoSync.length;
 
   const serverName = client.hostname;
 
@@ -1005,26 +738,6 @@ export default function AppsScreen() {
             >
               <Ionicons name="reorder-three" size={20} color={colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.iconBtn,
-                activeFilterCount > 0 && styles.iconBtnActive,
-              ]}
-              onPress={() => setShowFilter(true)}
-            >
-              <Ionicons
-                name="options"
-                size={20}
-                color={activeFilterCount > 0 ? colors.orange : colors.text}
-              />
-              {activeFilterCount > 0 && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>
-                    {activeFilterCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
           </View>
         </View>
 
@@ -1042,26 +755,195 @@ export default function AppsScreen() {
           )}
         </View>
 
-        {/* Health bar + legend */}
-        {apps.length > 0 && (
-          <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-            <HealthBar counts={healthCounts} />
-            <HealthLegend counts={healthCounts} />
-          </View>
-        )}
-
         {/* Search */}
         <View style={{ paddingHorizontal: 16, paddingBottom: 10 }}>
           <SearchField value={search} onChange={setSearch} />
         </View>
 
-        {/* Chips */}
-        <ChipRail
-          chips={chips}
-          active={chip}
-          onChange={setChip}
-          counts={chipCounts}
-        />
+        {/* Filter pill row */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pillRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          <FavChip on={favOn} onPress={() => setFavOn((v) => !v)} />
+
+          {syncSel.length === 0 ? (
+            <DropdownChip
+              label="Sync"
+              open={openGroup === "sync"}
+              onPress={() =>
+                setOpenGroup((g) => (g === "sync" ? null : "sync"))
+              }
+            />
+          ) : syncSel.length === 1 ? (
+            <ActivePill
+              icon={
+                <Ionicons
+                  name={getSync(syncSel[0]).icon}
+                  size={11}
+                  color={getSync(syncSel[0]).color}
+                />
+              }
+              label={syncSel[0]}
+              count={syncCounts[syncSel[0]]}
+              accent={getSync(syncSel[0]).color}
+              onPress={() =>
+                setOpenGroup((g) => (g === "sync" ? null : "sync"))
+              }
+              onClear={() => {
+                setSyncSel([]);
+                setOpenGroup(null);
+              }}
+            />
+          ) : (
+            <ActivePill
+              label={`Sync · ${syncSel.length}`}
+              accent={colors.orange}
+              onPress={() =>
+                setOpenGroup((g) => (g === "sync" ? null : "sync"))
+              }
+              onClear={() => {
+                setSyncSel([]);
+                setOpenGroup(null);
+              }}
+            />
+          )}
+
+          {healthSel.length === 0 ? (
+            <DropdownChip
+              label="Health"
+              open={openGroup === "health"}
+              onPress={() =>
+                setOpenGroup((g) => (g === "health" ? null : "health"))
+              }
+            />
+          ) : healthSel.length === 1 ? (
+            <ActivePill
+              icon={
+                <Ionicons
+                  name={getHealth(healthSel[0]).icon}
+                  size={11}
+                  color={getHealth(healthSel[0]).color}
+                />
+              }
+              label={healthSel[0]}
+              count={healthCounts[healthSel[0]]}
+              accent={getHealth(healthSel[0]).color}
+              onPress={() =>
+                setOpenGroup((g) => (g === "health" ? null : "health"))
+              }
+              onClear={() => {
+                setHealthSel([]);
+                setOpenGroup(null);
+              }}
+            />
+          ) : (
+            <ActivePill
+              label={`Health · ${healthSel.length}`}
+              accent={colors.orange}
+              onPress={() =>
+                setOpenGroup((g) => (g === "health" ? null : "health"))
+              }
+              onClear={() => {
+                setHealthSel([]);
+                setOpenGroup(null);
+              }}
+            />
+          )}
+        </ScrollView>
+
+        {/* Expansion strip */}
+        {openGroup !== null && (
+          <View style={styles.expansionStrip}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.expansionRail}
+              keyboardShouldPersistTaps="handled"
+            >
+              {(openGroup === "sync"
+                ? ["Synced", "OutOfSync", "Unknown"]
+                : [
+                    "Healthy",
+                    "Progressing",
+                    "Degraded",
+                    "Missing",
+                    "Suspended",
+                    "Unknown",
+                  ]
+              ).map((v) => {
+                const t = openGroup === "sync" ? getSync(v) : getHealth(v);
+                const sel = openGroup === "sync" ? syncSel : healthSel;
+                const on = sel.includes(v);
+                const cnt =
+                  openGroup === "sync"
+                    ? (syncCounts[v] ?? 0)
+                    : (healthCounts[v] ?? 0);
+                return (
+                  <TouchableOpacity
+                    key={v}
+                    onPress={() => {
+                      if (openGroup === "sync") {
+                        setSyncSel((prev) =>
+                          prev.includes(v)
+                            ? prev.filter((x) => x !== v)
+                            : [...prev, v],
+                        );
+                      } else {
+                        setHealthSel((prev) =>
+                          prev.includes(v)
+                            ? prev.filter((x) => x !== v)
+                            : [...prev, v],
+                        );
+                      }
+                    }}
+                    style={[
+                      styles.expansionChip,
+                      {
+                        backgroundColor: on
+                          ? t.color + "24"
+                          : "rgba(255,255,255,0.05)",
+                        borderColor: on ? t.color + "88" : colors.hairline,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={t.icon}
+                      size={10}
+                      color={on ? t.color : colors.muted}
+                    />
+                    <Text
+                      style={[
+                        styles.expansionChipText,
+                        { color: on ? t.color : colors.text },
+                      ]}
+                    >
+                      {v}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.expansionChipCount,
+                        { color: on ? t.color : colors.faint },
+                      ]}
+                    >
+                      {cnt}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Health bar */}
+        {apps.length > 0 && (
+          <View style={styles.healthBarRow}>
+            <HealthBar counts={healthCounts} />
+          </View>
+        )}
 
         <View style={styles.headerBorder} />
       </View>
@@ -1072,11 +954,12 @@ export default function AppsScreen() {
       apps.length,
       isLoading,
       healthCounts,
+      syncCounts,
       search,
-      chips,
-      chip,
-      chipCounts,
-      activeFilterCount,
+      favOn,
+      syncSel,
+      healthSel,
+      openGroup,
     ],
   );
 
@@ -1150,13 +1033,6 @@ export default function AppsScreen() {
         sortKey={sortKey}
         setSortKey={setSortKey}
       />
-      <FilterSheet
-        visible={showFilter}
-        onClose={() => setShowFilter(false)}
-        state={filterState}
-        setState={setFilterState}
-        counts={{ health: healthCounts, sync: syncCounts }}
-      />
     </View>
   );
 }
@@ -1210,26 +1086,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconBtnActive: {
-    borderColor: colors.orange,
-    backgroundColor: "rgba(239,123,77,0.1)",
-  },
-  filterBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.orange,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterBadgeText: {
-    fontSize: 9,
-    fontWeight: "700",
-    color: "#fff",
-  },
   titleRow: {
     flexDirection: "row",
     alignItems: "baseline",
@@ -1252,39 +1108,17 @@ const styles = StyleSheet.create({
   },
 
   // Health bar
+  healthBarRow: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
   healthBar: {
-    height: 6,
-    borderRadius: 3,
+    height: 4,
+    borderRadius: 2,
     overflow: "hidden",
     flexDirection: "row",
     backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  legendRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 8,
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  legendDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  legendText: {
-    fontSize: 11,
-    color: colors.muted,
-    fontWeight: "500",
-  },
-  legendCount: {
-    fontSize: 11,
-    color: colors.faint,
-    fontWeight: "500",
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
 
   // Search
@@ -1308,31 +1142,95 @@ const styles = StyleSheet.create({
     margin: 0,
   },
 
-  // Chip rail
-  chipRail: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+  // Filter pills
+  pillRow: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    paddingTop: 2,
     gap: 8,
     flexDirection: "row",
+    alignItems: "center",
   },
-  chip: {
+  filterPill: {
     flexDirection: "row",
     alignItems: "center",
-    height: 32,
-    paddingHorizontal: 12,
+    height: 34,
+    paddingHorizontal: 11,
     borderRadius: 999,
     borderWidth: 1,
-    gap: 4,
+    borderColor: colors.hairline,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    gap: 5,
+    flexShrink: 0,
   },
-  chipText: {
-    fontSize: 13,
+  filterPillText: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    color: colors.text,
+    letterSpacing: -0.1,
+  },
+  activePill: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+  activePillLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 10,
+    paddingRight: 4,
+    gap: 5,
+  },
+  activePillLabel: {
+    fontSize: 12.5,
     fontWeight: "600",
     letterSpacing: -0.1,
   },
-  chipCount: {
-    fontSize: 11,
+  activePillCount: {
+    fontSize: 10,
     fontWeight: "500",
-    marginLeft: 2,
+    opacity: 0.7,
+  },
+  activePillClear: {
+    paddingHorizontal: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Expansion strip
+  expansionStrip: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    backgroundColor: "rgba(255,255,255,0.025)",
+  },
+  expansionRail: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+    flexDirection: "row",
+  },
+  expansionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    gap: 5,
+    flexShrink: 0,
+  },
+  expansionChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  expansionChipCount: {
+    fontSize: 10,
+    fontWeight: "500",
+    opacity: 0.65,
   },
 
   // List
@@ -1535,19 +1433,6 @@ const styles = StyleSheet.create({
   },
 
   // Filter
-  filterSection: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  filterGroupLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    color: colors.faint,
-    textTransform: "uppercase",
-    paddingBottom: 6,
-    paddingLeft: 4,
-  },
   filterCard: {
     backgroundColor: "#1C2140",
     borderRadius: 14,
@@ -1576,30 +1461,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
     marginTop: 2,
-  },
-  filterCount: {
-    fontSize: 13,
-    color: colors.muted,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
-  filterIcon: {
-    width: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.hairlineHi,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  checkboxOn: {
-    backgroundColor: colors.orange,
-    borderColor: colors.orange,
   },
   clearBtn: {
     alignSelf: "center",
