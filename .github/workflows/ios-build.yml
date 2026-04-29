@@ -76,11 +76,11 @@ jobs:
       - name: Build and archive
         run: |
           xcodebuild \
-            -workspace ios/ArgoCDMobile.xcworkspace \
-            -scheme ArgoCDMobile \
+            -workspace ios/ArgoCD.xcworkspace \
+            -scheme ArgoCD \
             -configuration Release \
             -destination generic/platform=iOS \
-            -archivePath $RUNNER_TEMP/ArgoCDMobile.xcarchive \
+            -archivePath $RUNNER_TEMP/ArgoCD.xcarchive \
             DEVELOPMENT_TEAM="$PP_TEAM" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
@@ -114,14 +114,14 @@ jobs:
           EOF
           xcodebuild \
             -exportArchive \
-            -archivePath $RUNNER_TEMP/ArgoCDMobile.xcarchive \
+            -archivePath $RUNNER_TEMP/ArgoCD.xcarchive \
             -exportPath $RUNNER_TEMP/export \
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ArgoCDMobile-${{ github.event.inputs.distribution }}-${{ github.sha }}
+          name: ArgoCD-${{ github.event.inputs.distribution }}-${{ github.sha }}
           path: ${{ runner.temp }}/export/*.ipa
           retention-days: 14
 
