@@ -619,13 +619,6 @@ export default function AppDetailsScreen() {
                   loading: false,
                   disabled: false,
                 },
-                {
-                  icon: "ellipsis-horizontal" as const,
-                  label: "More",
-                  onPress: undefined,
-                  loading: false,
-                  disabled: false,
-                },
               ] as const
             ).map((btn) => (
               <TouchableOpacity
