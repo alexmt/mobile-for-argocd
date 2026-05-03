@@ -35,6 +35,58 @@ export class ArgoClient {
     }
   }
 
+  get queryKeys() {
+    const s = this.serverUrl;
+    return {
+      userInfo: () => ["userInfo", s] as const,
+      applications: () => ["applications", s] as const,
+      application: (namespace: string, name: string) =>
+        ["application", s, namespace, name] as const,
+      managedResources: (namespace: string, name: string) =>
+        ["managedResources", s, namespace, name] as const,
+      resourceTree: (namespace: string, name: string) =>
+        ["resourceTree", s, namespace, name] as const,
+      resource: (
+        appNamespace: string,
+        appName: string,
+        group: string | undefined,
+        version: string | undefined,
+        kind: string,
+        namespace: string | undefined,
+        name: string,
+      ) =>
+        [
+          "resource",
+          s,
+          appNamespace,
+          appName,
+          group,
+          version,
+          kind,
+          namespace,
+          name,
+        ] as const,
+      managedResource: (
+        appNamespace: string,
+        appName: string,
+        group: string | undefined,
+        kind: string,
+        namespace: string | undefined,
+        name: string,
+      ) =>
+        [
+          "managedResource",
+          s,
+          appNamespace,
+          appName,
+          group,
+          kind,
+          namespace,
+          name,
+        ] as const,
+    };
+  }
+
   listApplications() {
     return listApplications(this.serverUrl, this.token);
   }

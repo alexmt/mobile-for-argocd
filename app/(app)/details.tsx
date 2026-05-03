@@ -20,7 +20,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { colors } from "../../lib/theme";
 import { appSource, type Application, type ResourceNode } from "../../lib/api";
 import { useArgoClient } from "../../lib/client";
-import { queryKeys } from "../../lib/query-keys";
 import { getHealth, getOperationPhase, getSync } from "../../lib/status";
 import { SyncSheet } from "../../components/sync-sheet";
 import { ResourceTreeSheet } from "../../components/resource-tree-sheet";
@@ -341,7 +340,7 @@ export default function AppDetailsScreen() {
     useResourceFilter();
   const [showResourceFilter, setShowResourceFilter] = useState(false);
 
-  const queryKey = queryKeys.application(client.serverUrl, namespace, name);
+  const queryKey = client.queryKeys.application(namespace, name);
   const [treeSheet, setTreeSheet] = useState<{
     title: string;
     nodes: ResourceNode[];
@@ -360,7 +359,7 @@ export default function AppDetailsScreen() {
   });
 
   const { data: treeData } = useQuery({
-    queryKey: queryKeys.resourceTree(client.serverUrl, namespace, name),
+    queryKey: client.queryKeys.resourceTree(namespace, name),
     queryFn: () => client.getResourceTree(name, namespace),
     staleTime: 30_000,
     enabled: !!app,

@@ -23,7 +23,6 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../../lib/theme";
 import { useArgoClient } from "../../lib/client";
-import { queryKeys } from "../../lib/query-keys";
 import type { LogEntry } from "../../lib/api";
 
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -160,8 +159,7 @@ export default function LogsScreen() {
   // ── Pod spec fetch for container list ──────────────────────
 
   const hasPod = !!podName || kind?.toLowerCase() === "pod";
-  const specQueryKey = queryKeys.resource(
-    client.serverUrl,
+  const specQueryKey = client.queryKeys.resource(
     appNamespace,
     appName,
     group,

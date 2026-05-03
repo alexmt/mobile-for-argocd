@@ -19,7 +19,6 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { colors } from "../../../lib/theme";
 import { useArgoClient } from "../../../lib/client";
-import { queryKeys } from "../../../lib/query-keys";
 import { tokenStorage } from "../../../lib/storage";
 
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -55,7 +54,7 @@ export default function UserScreen() {
   const client = useArgoClient();
 
   const { data: userInfo, isLoading } = useQuery({
-    queryKey: queryKeys.userInfo(client.serverUrl),
+    queryKey: client.queryKeys.userInfo(),
     queryFn: () => client.getUserInfo(),
     staleTime: 5 * 60_000,
   });

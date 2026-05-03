@@ -562,11 +562,15 @@ export default function LoginScreen() {
     // External OIDC: fetch discovery document
     let active = true;
     fetchDiscoveryAsync(oidcConfig.issuer)
-      .then((doc) => { if (active) setDiscovery(doc); })
+      .then((doc) => {
+        if (active) setDiscovery(doc);
+      })
       .catch((err: unknown) => {
         console.warn("OIDC discovery failed:", String(err));
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [oidcConfig]);
 
   const ssoConfigured = !!oidcConfig;

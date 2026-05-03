@@ -24,7 +24,6 @@ import type { ComponentProps } from "react";
 
 import { colors } from "../../lib/theme";
 import { useArgoClient } from "../../lib/client";
-import { queryKeys } from "../../lib/query-keys";
 import type { ResourceNode } from "../../lib/api";
 import { getHealth } from "../../lib/status";
 import {
@@ -220,7 +219,7 @@ export default function TreeScreen() {
   const [showFilter, setShowFilter] = useState(false);
 
   const { data: treeData, isLoading } = useQuery({
-    queryKey: queryKeys.resourceTree(client.serverUrl, namespace, name),
+    queryKey: client.queryKeys.resourceTree(namespace, name),
     queryFn: () => client.getResourceTree(name, namespace),
     staleTime: 30_000,
   });

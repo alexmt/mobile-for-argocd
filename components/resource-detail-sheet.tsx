@@ -28,7 +28,6 @@ import type { ComponentProps } from "react";
 import { colors } from "../lib/theme";
 import { getHealth, getSync } from "../lib/status";
 import { useArgoClient } from "../lib/client";
-import { queryKeys } from "../lib/query-keys";
 import type { LogEntry, ManagedResource } from "../lib/api";
 
 const { height: SCREEN_H } = Dimensions.get("window");
@@ -704,8 +703,7 @@ function LogsTabContent({
   const autoScrollRef = useRef(true);
 
   const { data: liveObj } = useQuery({
-    queryKey: queryKeys.resource(
-      client.serverUrl,
+    queryKey: client.queryKeys.resource(
       appNamespace,
       appName,
       resource.group,
@@ -1042,8 +1040,7 @@ export function ResourceDetailContent({
     isLoading: liveLoading,
     error: liveError,
   } = useQuery({
-    queryKey: queryKeys.resource(
-      client.serverUrl,
+    queryKey: client.queryKeys.resource(
       appNamespace,
       appName,
       resource.group,
@@ -1068,8 +1065,7 @@ export function ResourceDetailContent({
   });
 
   const { data: managed } = useQuery({
-    queryKey: queryKeys.managedResource(
-      client.serverUrl,
+    queryKey: client.queryKeys.managedResource(
       appNamespace,
       appName,
       resource.group,

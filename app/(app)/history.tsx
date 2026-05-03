@@ -18,7 +18,6 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { colors } from "../../lib/theme";
 import { useArgoClient } from "../../lib/client";
-import { queryKeys } from "../../lib/query-keys";
 import type { AppSource, RevisionHistory } from "../../lib/api";
 
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -243,7 +242,7 @@ export default function HistoryScreen() {
   const [rollingBackId, setRollingBackId] = useState<number | null>(null);
 
   const { data: app, isLoading } = useQuery({
-    queryKey: queryKeys.application(client.serverUrl, namespace, name),
+    queryKey: client.queryKeys.application(namespace, name),
     queryFn: () => client.getApplication(name, namespace),
     staleTime: 30_000,
   });
@@ -254,7 +253,7 @@ export default function HistoryScreen() {
     onSettled: () => setRollingBackId(null),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.application(client.serverUrl, namespace, name),
+        queryKey: client.queryKeys.application(namespace, name),
       });
       router.back();
     },

@@ -18,7 +18,6 @@ import * as jsYaml from "js-yaml";
 
 import { colors } from "../../lib/theme";
 import { useArgoClient } from "../../lib/client";
-import { queryKeys } from "../../lib/query-keys";
 import type { ManagedResource } from "../../lib/api";
 
 // ── Colors ────────────────────────────────────────────────────
@@ -263,7 +262,7 @@ export default function DiffScreen() {
   const [compact, setCompact] = useState(true);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: queryKeys.managedResources(client.serverUrl, namespace, name),
+    queryKey: client.queryKeys.managedResources(namespace, name),
     queryFn: () => client.getManagedResources(name, namespace),
     staleTime: 0,
     gcTime: 0,

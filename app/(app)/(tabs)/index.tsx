@@ -27,7 +27,6 @@ import { colors } from "../../../lib/theme";
 import { appKey, appSource, type Application } from "../../../lib/api";
 import { favoritesStorage } from "../../../lib/storage";
 import { useArgoClient } from "../../../lib/client";
-import { queryKeys } from "../../../lib/query-keys";
 import { getHealth, getSync, healthSeverity } from "../../../lib/status";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -688,7 +687,7 @@ export default function AppsScreen() {
   }, []);
 
   // Initial list fetch — react-query owns loading/error/data
-  const queryKey = queryKeys.applications(client.serverUrl);
+  const queryKey = client.queryKeys.applications();
   const {
     data,
     isLoading,
