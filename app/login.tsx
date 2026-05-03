@@ -24,6 +24,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
+import {
+  AuthRequest,
+  exchangeCodeAsync,
+  fetchDiscoveryAsync,
+  makeRedirectUri,
+  type DiscoveryDocument,
+  ResponseType,
+} from "expo-auth-session";
 
 import { colors } from "../lib/theme";
 import {
@@ -31,10 +39,13 @@ import {
   hostFromUrl,
   loginWithPassword,
   normalizeUrl,
-  ssoLoginUrl,
+  resolveOidcConfig,
   type AuthSettings,
+  type OidcFlowConfig,
 } from "../lib/api";
 import { serverStorage, tokenStorage } from "../lib/storage";
+
+WebBrowser.maybeCompleteAuthSession();
 
 // ── Seeded RNG (Mulberry32) ────────────────────────────────────
 function mulberry32(seed: number) {
@@ -526,11 +537,39 @@ export default function LoginScreen() {
       });
   }, [serverUrl]);
 
-  const ssoConfigured = useMemo(() => {
-    if (!authSettings) return false;
-    const connectors = authSettings.dexConfig?.connectors ?? [];
-    return connectors.length > 0 || !!authSettings.oidcConfig;
-  }, [authSettings]);
+  // ── OIDC / SSO ──────────────────────────────────────────────
+  const oidcConfig: OidcFlowConfig | null = useMemo(
+    () =>
+      authSettings && serverUrl
+        ? resolveOidcConfig(authSettings, serverUrl)
+        : null,
+    [authSettings, serverUrl],
+  );
+
+  const redirectUri = makeRedirectUri({
+    scheme: "argocd",
+    path: "auth/callback",
+  });
+
+  const [discovery, setDiscovery] = useState<DiscoveryDocument | null>(null);
+  useEffect(() => {
+    if (!oidcConfig) return;
+    // For Dex, endpoints are pre-built — no network fetch needed
+    if (oidcConfig.endpoints) {
+      setDiscovery(oidcConfig.endpoints as unknown as DiscoveryDocument);
+      return;
+    }
+    // External OIDC: fetch discovery document
+    let active = true;
+    fetchDiscoveryAsync(oidcConfig.issuer)
+      .then((doc) => { if (active) setDiscovery(doc); })
+      .catch((err: unknown) => {
+        console.warn("OIDC discovery failed:", String(err));
+      });
+    return () => { active = false; };
+  }, [oidcConfig]);
+
+  const ssoConfigured = !!oidcConfig;
 
   const ssoLabel = useMemo(() => {
     if (!authSettings) return "SSO Login";
@@ -566,30 +605,44 @@ export default function LoginScreen() {
   }, [canSubmit, serverUrl, username, password, router]);
 
   const handleSSO = useCallback(async () => {
-    if (!serverUrl || loginState !== "idle") return;
+    if (!oidcConfig || !discovery || loginState !== "idle") return;
     setLoginState("sso-pending");
     try {
-      // Opens the SSO flow in an in-app browser.
-      // After authentication the server should redirect back to the argocd:// scheme.
-      const result = await WebBrowser.openAuthSessionAsync(
-        ssoLoginUrl(serverUrl),
-        "argocd://",
-      );
-      if (result.type === "success" && result.url) {
-        const params = new URL(result.url).searchParams;
-        const token = params.get("token");
-        if (token) {
-          await tokenStorage.set(token);
-          setLoginState("success");
-          setTimeout(() => router.replace("/(app)/"), 900);
-          return;
-        }
+      const request = new AuthRequest({
+        clientId: oidcConfig.clientId,
+        scopes: oidcConfig.scopes,
+        redirectUri,
+        usePKCE: true,
+        responseType: ResponseType.Code,
+      });
+      const result = await request.promptAsync(discovery);
+      if (result.type === "success") {
+        const tokenResponse = await exchangeCodeAsync(
+          {
+            clientId: oidcConfig.clientId,
+            code: result.params.code,
+            redirectUri,
+            extraParams: request.codeVerifier
+              ? { code_verifier: request.codeVerifier }
+              : undefined,
+          },
+          discovery,
+        );
+        const token = tokenResponse.idToken;
+        if (!token) throw new Error("No id_token in token response");
+        await tokenStorage.set(token);
+        setLoginState("success");
+        setTimeout(() => router.replace("/(app)/"), 900);
+      } else {
+        setLoginState("idle");
       }
-      setLoginState("idle");
-    } catch {
-      setLoginState("idle");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "SSO login failed";
+      setErrorMessage(msg);
+      setLoginState("error");
+      setTimeout(() => setLoginState("idle"), 2400);
     }
-  }, [serverUrl, loginState, router]);
+  }, [oidcConfig, discovery, loginState, redirectUri, router]);
 
   const handleSaveServer = useCallback((url: string) => {
     serverStorage.set(url);
@@ -652,8 +705,13 @@ export default function LoginScreen() {
             {ssoConfigured && (
               <TouchableOpacity
                 onPress={handleSSO}
-                disabled={isLoading || loginState === "loading-settings"}
-                style={[styles.btnSSO, isLoading && { opacity: 0.6 }]}
+                disabled={
+                  isLoading || loginState === "loading-settings" || !discovery
+                }
+                style={[
+                  styles.btnSSO,
+                  (isLoading || !discovery) && { opacity: 0.6 },
+                ]}
                 activeOpacity={0.8}
               >
                 {loginState === "sso-pending" ? (

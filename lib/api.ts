@@ -18,14 +18,63 @@ export async function getUserInfo(
 }
 
 export interface AuthSettings {
+  url?: string;
   dexConfig?: {
     connectors?: { id: string; name: string; type: string }[];
   };
   oidcConfig?: {
     name: string;
     issuer: string;
+    clientID: string;
+    cliClientID?: string;
+    scopes?: string[];
   };
   userLoginsDisabled?: boolean;
+}
+
+export interface OidcFlowConfig {
+  issuer: string;
+  clientId: string;
+  scopes: string[];
+  // Pre-built endpoints — set for Dex to avoid fetching /.well-known/
+  // (the endpoint is often unreachable from mobile due to proxy/network rules)
+  endpoints?: {
+    authorizationEndpoint: string;
+    tokenEndpoint: string;
+  };
+}
+
+export function resolveOidcConfig(
+  settings: AuthSettings,
+  serverUrl: string,
+): OidcFlowConfig | null {
+  if (settings.oidcConfig) {
+    return {
+      issuer: settings.oidcConfig.issuer,
+      clientId: settings.oidcConfig.cliClientID ?? settings.oidcConfig.clientID,
+      scopes: settings.oidcConfig.scopes?.length
+        ? settings.oidcConfig.scopes
+        : ["openid", "profile", "email", "groups"],
+    };
+  }
+  if (settings.dexConfig?.connectors?.length) {
+    // Dex issuer lives at {argocd_url}/api/dex — prefer the URL the server
+    // reports over the client-supplied serverUrl to handle reverse-proxy setups
+    const base = (settings.url ?? serverUrl).replace(/\/+$/, "");
+    const issuer = `${base}/api/dex`;
+    return {
+      issuer,
+      clientId: "argo-cd-cli",
+      scopes: ["openid", "profile", "email", "groups", "offline_access"],
+      // Dex paths are well-known; building them avoids fetching /.well-known/
+      // which may be blocked by the proxy sitting in front of ArgoCD
+      endpoints: {
+        authorizationEndpoint: `${issuer}/auth`,
+        tokenEndpoint: `${issuer}/token`,
+      },
+    };
+  }
+  return null;
 }
 
 export function normalizeUrl(raw: string): string {
@@ -69,10 +118,6 @@ export async function loginWithPassword(
   }
   const data = (await res.json()) as { token: string };
   return data.token;
-}
-
-export function ssoLoginUrl(serverUrl: string): string {
-  return `${serverUrl}/auth/login`;
 }
 
 // ── Application model ─────────────────────────────────────────

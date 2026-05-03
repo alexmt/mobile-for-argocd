@@ -3554,6 +3554,11 @@ eventsource@^3.0.2:
   dependencies:
     eventsource-parser "^3.0.1"
 
+expo-application@~55.0.14:
+  version "55.0.14"
+  resolved "https://registry.yarnpkg.com/expo-application/-/expo-application-55.0.14.tgz#f746896c535aa512e0b3cb50efffa02bc05a7a6d"
+  integrity sha512-NgqDIt3eCf4aVLp1L6AcEanCYoyJeuBsGrgGSzOIvxAsOvp5X3SYKW3ROgpKUnLQEKMWlzwETpjsUGszcqkk8g==
+
 expo-asset@~55.0.16:
   version "55.0.16"
   resolved "https://registry.yarnpkg.com/expo-asset/-/expo-asset-55.0.16.tgz#e7c8d7140e4d8958d3b8fa3d9ea6642cb49369b2"
@@ -3562,12 +3567,29 @@ expo-asset@~55.0.16:
     "@expo/image-utils" "^0.8.13"
     expo-constants "~55.0.15"
 
+expo-auth-session@~55.0.15:
+  version "55.0.15"
+  resolved "https://registry.yarnpkg.com/expo-auth-session/-/expo-auth-session-55.0.15.tgz#6bc6d14e2d54fe6ddc6c6ec04428b9528a3d8970"
+  integrity sha512-RPnoLs6+FY2MMWnV0cqz4uNzi2b1dwjqE6vv7Izb5vWI2RCFUnBSMy1fgXp4BSWaFm0VZzeMl6UjsgVh2QFe0g==
+  dependencies:
+    expo-application "~55.0.14"
+    expo-constants "~55.0.15"
+    expo-crypto "~55.0.14"
+    expo-linking "~55.0.14"
+    expo-web-browser "~55.0.14"
+    invariant "^2.2.4"
+
 expo-constants@~55.0.15:
   version "55.0.15"
   resolved "https://registry.yarnpkg.com/expo-constants/-/expo-constants-55.0.15.tgz#62d1d828ff3384dda4bccdf45e990d700675fc70"
   integrity sha512-w394fcZLJjeKN+9ZnJzL/HiarE1nwZFDa+3S9frevh6Ur+MAAs9QDrcXhDrV8T3xqRzzYaqsP6Z8TFZ4efWN1A==
   dependencies:
     "@expo/env" "~2.1.1"
+
+expo-crypto@~55.0.14:
+  version "55.0.14"
+  resolved "https://registry.yarnpkg.com/expo-crypto/-/expo-crypto-55.0.14.tgz#2a6b03f4d57c50b68b9524dbc7bd88f510032d0d"
+  integrity sha512-TfAADBGZNNv9OOmdKFJCz54wDj87ufxtzQNSY+Roycpm8e5tuCnDIL7EjqUOmNTGH99Jj8ftPGFt4KGG2Ii2fg==
 
 expo-file-system@~55.0.17:
   version "55.0.17"
