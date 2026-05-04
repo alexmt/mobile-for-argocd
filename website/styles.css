@@ -996,6 +996,29 @@ img { max-width: 100%; display: block; }
   max-width: 720px;
 }
 .faq-item .faq-body p { margin-bottom: 10px; }
+.faq-item .faq-body ol { margin: 8px 0 12px 22px; }
+.faq-item .faq-body li { margin-bottom: 6px; color: var(--fg-muted); font-size: 0.95rem; line-height: 1.6; }
+.faq-item .faq-body li::marker { color: var(--fg-dim); }
+pre.code-block {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  background: var(--bg-elev);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin: 14px 0 16px;
+  overflow-x: auto;
+  color: var(--fg);
+  white-space: pre;
+}
+pre.code-block code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
 .faq-item .faq-body code {
   font-family: var(--font-mono);
   font-size: 0.88em;
