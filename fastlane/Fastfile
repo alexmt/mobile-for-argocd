@@ -1,0 +1,30 @@
+default_platform(:ios)
+
+def api_key
+  if ENV["ASC_API_KEY_CONTENT"]
+    app_store_connect_api_key(
+      key_id: "886K7QM3SJ",
+      issuer_id: "1568998b-de20-4da5-b2aa-13b31be74dea",
+      key_content: ENV["ASC_API_KEY_CONTENT"],
+      is_key_content_base64: true,
+    )
+  else
+    app_store_connect_api_key(
+      key_id: "886K7QM3SJ",
+      issuer_id: "1568998b-de20-4da5-b2aa-13b31be74dea",
+      key_filepath: File.expand_path("~/.appstoreconnect/AuthKey_886K7QM3SJ.p8"),
+    )
+  end
+end
+
+platform :ios do
+  desc "Upload IPA to TestFlight"
+  lane :beta do |options|
+    ipa_path = options[:ipa] || Dir["#{ENV['RUNNER_TEMP']}/export/*.ipa"].first
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+    )
+  end
+end

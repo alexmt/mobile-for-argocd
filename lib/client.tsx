@@ -260,7 +260,7 @@ export function ArgoClientProvider({
   useEffect(() => {
     Promise.all([tokenStorage.get(), serverStorage.get()]).then(
       ([token, server]) => {
-        if (!token || !server) {
+        if (token === null || !server) {
           router.replace("/login");
         } else {
           setClient(new ArgoClient(server, token));

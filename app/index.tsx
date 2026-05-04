@@ -8,7 +8,7 @@ export default function Index() {
   useEffect(() => {
     Promise.all([tokenStorage.get(), serverStorage.get()]).then(
       ([token, server]) => {
-        setDest(token && server ? "/(app)/" : "/login");
+        setDest(token !== null && server !== null ? "/(app)/" : "/login");
       },
     );
   }, []);

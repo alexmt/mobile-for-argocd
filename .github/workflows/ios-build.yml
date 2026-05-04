@@ -38,9 +38,26 @@ jobs:
       - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean
 
+      - name: Patch Info.plist build number
+        run: |
+          PLIST="ios/ArgoCD/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion \$(CURRENT_PROJECT_VERSION)" "$PLIST"
+
       - name: Install CocoaPods dependencies
         working-directory: ios
         run: pod install
+
+      - name: Patch Pods for Xcode 26
+        working-directory: ios
+        run: |
+          find Pods -name "Portability.h" ! -type l | while read f; do
+            chmod 644 "$f"
+            sed -i '' 's/#define FOLLY_HAS_COROUTINES 1/#define FOLLY_HAS_COROUTINES 0/' "$f"
+          done
+          find Pods -name "base.h" -path "*/fmt/*" ! -type l | while read f; do
+            chmod 644 "$f"
+            sed -i '' 's/#  define FMT_CONSTEVAL consteval/#  define FMT_CONSTEVAL constexpr/' "$f"
+          done
 
       - name: Import signing certificate
         env:
@@ -85,6 +102,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE="$PP_UUID" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             archive
 
       - name: Export IPA
@@ -124,6 +142,12 @@ jobs:
           name: ArgoCD-${{ github.event.inputs.distribution }}-${{ github.sha }}
           path: ${{ runner.temp }}/export/*.ipa
           retention-days: 14
+
+      - name: Upload to TestFlight
+        if: github.event.inputs.distribution == 'app-store'
+        env:
+          ASC_API_KEY_CONTENT: ${{ secrets.ASC_API_KEY_CONTENT }}
+        run: fastlane beta
 
       - name: Clean up keychain
         if: always()

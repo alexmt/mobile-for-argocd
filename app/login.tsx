@@ -648,6 +648,16 @@ export default function LoginScreen() {
     }
   }, [oidcConfig, discovery, loginState, redirectUri, router]);
 
+  const handleAnonymous = useCallback(async () => {
+    if (!serverUrl) {
+      setShowServerModal(true);
+      return;
+    }
+    await tokenStorage.set("anonymous");
+    setLoginState("success");
+    setTimeout(() => router.replace("/(app)/"), 900);
+  }, [serverUrl, router]);
+
   const handleSaveServer = useCallback((url: string) => {
     serverStorage.set(url);
     setServerUrl(url);
@@ -827,6 +837,13 @@ export default function LoginScreen() {
             )}
 
             <View style={styles.footer}>
+              <TouchableOpacity
+                testID="btn-anonymous"
+                onPress={handleAnonymous}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.footerLink}>Continue anonymously</Text>
+              </TouchableOpacity>
               <TouchableOpacity activeOpacity={0.6}>
                 <Text style={styles.footerLink}>Need help?</Text>
               </TouchableOpacity>
@@ -1117,7 +1134,7 @@ const styles = StyleSheet.create({
   // Footer
   footer: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     marginTop: 14,
     paddingHorizontal: 4,
   },

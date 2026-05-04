@@ -5,12 +5,18 @@ export interface UserInfo {
   groups?: string[];
 }
 
+function authHeader(token: string): Record<string, string> {
+  return token && token !== "anonymous"
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+}
+
 export async function getUserInfo(
   serverUrl: string,
   token: string,
 ): Promise<UserInfo> {
   const res = await fetch(`${serverUrl}/api/v1/session/userinfo`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeader(token),
   });
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -253,7 +259,7 @@ export async function getApplication(
 ): Promise<Application> {
   const res = await fetch(
     `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}?appNamespace=${encodeURIComponent(namespace)}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: authHeader(token) },
   );
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -273,7 +279,7 @@ export async function refreshApplication(
   });
   const res = await fetch(
     `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: authHeader(token) },
   );
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -312,7 +318,7 @@ export async function syncApplication(
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        ...authHeader(token),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -347,7 +353,7 @@ export async function rollbackApplication(
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        ...authHeader(token),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ id, appNamespace: namespace }),
@@ -412,7 +418,7 @@ export async function getResource(
   if (version) params.set("version", version);
   const res = await fetch(
     `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/resource?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: authHeader(token) },
   );
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -439,7 +445,7 @@ export async function getManagedResource(
   if (group) params.set("group", group);
   const res = await fetch(
     `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/managed-resources?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: authHeader(token) },
   );
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -455,7 +461,7 @@ export async function getResourceTree(
 ): Promise<ResourceTree> {
   const res = await fetch(
     `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}/resource-tree?appNamespace=${encodeURIComponent(namespace)}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: authHeader(token) },
   );
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -486,7 +492,7 @@ export async function getManagedResources(
 ): Promise<ManagedResource[]> {
   const res = await fetch(
     `${serverUrl}/api/v1/applications/${encodeURIComponent(name)}/managed-resources?appNamespace=${encodeURIComponent(namespace)}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: authHeader(token) },
   );
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -500,7 +506,7 @@ export async function listApplications(
 ): Promise<{ items: Application[]; resourceVersion: string }> {
   const res = await fetch(
     `${serverUrl}/api/v1/applications?fields=${encodeURIComponent(LIST_FIELDS)}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: authHeader(token) },
   );
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -536,7 +542,7 @@ export function watchApplication(
 
   return new Promise((resolve, reject) => {
     const es = new RNEventSource(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeader(token),
     });
 
     const cleanup = () => {
@@ -637,7 +643,7 @@ export function streamLogs(
   const url = `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/logs?${params.toString()}`;
 
   const es = new RNEventSource(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeader(token),
   });
 
   const cleanup = () => es.close();
@@ -694,7 +700,7 @@ export function watchApplications(
 
   return new Promise((resolve, reject) => {
     const es = new RNEventSource(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeader(token),
     });
 
     const cleanup = () => {
