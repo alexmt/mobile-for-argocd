@@ -382,6 +382,8 @@ function EyeToggle({ open, onPress }: { open: boolean; onPress: () => void }) {
   );
 }
 
+const DEMO_SERVER = "https://cd.apps.argoproj.io";
+
 // ── Server URL modal ───────────────────────────────────────────
 function ServerModal({
   visible,
@@ -395,17 +397,55 @@ function ServerModal({
   onCancel: () => void;
 }) {
   const [input, setInput] = useState(initialValue);
+  const [validating, setValidating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    if (visible) setInput(initialValue);
+    if (visible) {
+      setInput(initialValue);
+      setError(null);
+    }
   }, [visible, initialValue]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const url = normalizeUrl(input);
     if (!url) return;
+
+    try {
+      const parsed = new URL(url);
+      if (!parsed.hostname) throw new Error();
+    } catch {
+      setError("Enter a valid URL, e.g. https://argocd.example.com");
+      return;
+    }
+
+    setValidating(true);
+    setError(null);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      await fetch(`${url}/api/version`, { signal: controller.signal });
+      clearTimeout(timeout);
+    } catch (e: unknown) {
+      setValidating(false);
+      if (e instanceof Error && e.name === "AbortError") {
+        setError("Connection timed out. Check the URL and your network.");
+      } else {
+        setError("Could not reach the server. Check the URL and your network.");
+      }
+      return;
+    }
+    setValidating(false);
     onSave(url);
   }, [input, onSave]);
+
+  const handleDemo = useCallback(() => {
+    setInput(DEMO_SERVER);
+    setError(null);
+  }, []);
+
+  const canSave = !!input.trim() && !validating;
 
   return (
     <Modal
@@ -434,23 +474,34 @@ function ServerModal({
           <View
             style={[
               styles.field,
-              { borderColor: colors.hairline, marginTop: 20 },
+              {
+                borderColor: error ? "rgba(255,107,107,0.5)" : colors.hairline,
+                marginTop: 20,
+              },
             ]}
           >
-            <Text style={[styles.fieldLabel, { color: colors.faint }]}>
+            <Text
+              style={[
+                styles.fieldLabel,
+                { color: error ? colors.danger : colors.faint },
+              ]}
+            >
               URL
             </Text>
             <View style={styles.fieldRow}>
               <TextInput
                 style={styles.fieldInput}
                 value={input}
-                onChangeText={setInput}
+                onChangeText={(t) => {
+                  setInput(t);
+                  setError(null);
+                }}
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="url"
                 keyboardType="url"
                 keyboardAppearance="dark"
-                placeholder="argocd.your-company.com"
+                placeholder="https://argocd.example.com"
                 placeholderTextColor={colors.faint}
                 returnKeyType="done"
                 onSubmitEditing={handleSave}
@@ -458,10 +509,28 @@ function ServerModal({
               />
             </View>
           </View>
+
+          {error ? (
+            <View style={styles.modalError}>
+              <Ionicons name="alert-circle" size={14} color={colors.danger} />
+              <Text style={styles.modalErrorText}>{error}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handleDemo}
+              style={styles.demoBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="flask-outline" size={14} color={colors.orange} />
+              <Text style={styles.demoBtnText}>Try public demo server</Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.modalButtons}>
             <TouchableOpacity
               onPress={onCancel}
               style={[styles.btn, styles.btnGhost]}
+              disabled={validating}
             >
               <Text style={[styles.btnText, { color: colors.muted }]}>
                 Cancel
@@ -472,11 +541,15 @@ function ServerModal({
               style={[
                 styles.btn,
                 styles.btnPrimary,
-                !input.trim() && styles.btnPrimaryDisabled,
+                !canSave && styles.btnPrimaryDisabled,
               ]}
-              disabled={!input.trim()}
+              disabled={!canSave}
             >
-              <Text style={styles.btnText}>Save</Text>
+              {validating ? (
+                <View style={styles.spinner} />
+              ) : (
+                <Text style={styles.btnText}>Save</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -509,6 +582,7 @@ export default function LoginScreen() {
   const [focused, setFocused] = useState<"username" | "password" | null>(null);
 
   const [showServerModal, setShowServerModal] = useState(false);
+  const [settingsRefreshKey, setSettingsRefreshKey] = useState(0);
 
   // Load saved server URL on mount
   useEffect(() => {
@@ -521,7 +595,7 @@ export default function LoginScreen() {
     });
   }, []);
 
-  // Fetch auth settings when server URL changes
+  // Fetch auth settings when server URL changes or is re-saved
   useEffect(() => {
     if (!serverUrl) return;
     setLoginState("loading-settings");
@@ -535,7 +609,7 @@ export default function LoginScreen() {
         setAuthSettings({ userLoginsDisabled: false });
         setLoginState("idle");
       });
-  }, [serverUrl]);
+  }, [serverUrl, settingsRefreshKey]);
 
   // ── OIDC / SSO ──────────────────────────────────────────────
   const oidcConfig: OidcFlowConfig | null = useMemo(
@@ -662,6 +736,7 @@ export default function LoginScreen() {
     serverStorage.set(url);
     setServerUrl(url);
     setAuthSettings(null);
+    setSettingsRefreshKey((k) => k + 1);
     setShowServerModal(false);
   }, []);
 
@@ -1194,6 +1269,30 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginTop: 6,
     letterSpacing: -0.1,
+  },
+  modalError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  modalErrorText: {
+    fontSize: 13,
+    color: colors.danger,
+    flex: 1,
+    lineHeight: 18,
+  },
+  demoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    alignSelf: "flex-start",
+  },
+  demoBtnText: {
+    fontSize: 13,
+    color: colors.orange,
+    fontWeight: "500",
   },
   modalButtons: {
     flexDirection: "row",
