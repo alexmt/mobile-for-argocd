@@ -1029,6 +1029,33 @@ pre.code-block code {
   color: var(--fg);
 }
 
+/* ---------- Steps ("How it works" 3-up) ---------- */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+/* ---------- Mobile nav ---------- */
+.menu-btn { display: none; }
+
+.mobile-nav {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.mobile-nav.open { display: flex; }
+.mobile-nav a {
+  color: var(--fg-muted);
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: color .15s, background .15s;
+}
+.mobile-nav a:hover { color: var(--fg); background: var(--bg-elev); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 960px) {
   .hero { padding: 60px 0 40px; }
@@ -1038,20 +1065,34 @@ pre.code-block code {
   .feature-grid { grid-template-columns: repeat(2, 1fr); }
   .float-1, .float-2, .float-3 { display: none; }
   .oss-inner { grid-template-columns: 1fr; }
+  .oss-band { padding: 60px 0; }
   .privacy-wrap { grid-template-columns: 1fr; gap: 28px; }
   .toc { position: static; }
   .footer-inner { grid-template-columns: 1fr 1fr; }
   .support-cards { grid-template-columns: 1fr; }
   .summary-card .checklist { grid-template-columns: 1fr; }
   .section { padding: 70px 0; }
+  .steps { grid-template-columns: repeat(2, 1fr); }
+  .faq-section { padding: 60px 0 80px; }
 }
 
 @media (max-width: 600px) {
   .container { padding: 0 20px; }
   .site-header .inner { padding: 12px 20px; }
   .nav { display: none; }
+  .menu-btn { display: grid; }
+  .hero { padding: 40px 0 24px; }
+  .phone-stage { min-height: 380px; }
+  .phone { transform: rotate(-2deg) scale(0.86); }
   .feature-grid { grid-template-columns: 1fr; }
-  .footer-inner { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: 1fr; }
   .float-1, .float-2, .float-3 { display: none; }
-  .oss-stats { grid-template-columns: 1fr; }
+  .oss-stats { grid-template-columns: 1fr 1fr; }
+  .oss-band { padding: 50px 0; }
+  .section { padding: 50px 0; }
+  .faq-section { padding: 50px 0 60px; }
+  .footer-inner { grid-template-columns: 1fr; }
+  .page-hero { padding: 50px 0 28px; }
+  .support-cards { gap: 16px; }
+  pre.code-block { font-size: 0.76rem; padding: 14px 16px; }
 }
