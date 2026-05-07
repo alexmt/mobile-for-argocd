@@ -627,15 +627,20 @@ export default function LoginScreen() {
 
   const [discovery, setDiscovery] = useState<DiscoveryDocument | null>(null);
   useEffect(() => {
-    if (!oidcConfig) return;
+    if (!oidcConfig) {
+      setDiscovery(null);
+      return;
+    }
     // For Dex, endpoints are pre-built — no network fetch needed
     if (oidcConfig.endpoints) {
       setDiscovery(oidcConfig.endpoints as unknown as DiscoveryDocument);
       return;
     }
     // External OIDC: fetch discovery document
+    setDiscovery(null);
     let active = true;
-    fetchDiscoveryAsync(oidcConfig.issuer)
+    const issuer = oidcConfig.issuer.replace(/\/+$/, "");
+    fetchDiscoveryAsync(issuer)
       .then((doc) => {
         if (active) setDiscovery(doc);
       })
