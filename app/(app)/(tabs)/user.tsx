@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -52,6 +52,7 @@ export default function UserScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const client = useArgoClient();
+  const queryClient = useQueryClient();
 
   const { data: userInfo, isLoading } = useQuery({
     queryKey: client.queryKeys.userInfo(),
@@ -67,6 +68,7 @@ export default function UserScreen() {
         style: "destructive",
         onPress: async () => {
           await tokenStorage.clear();
+          queryClient.clear();
           router.replace("/login");
         },
       },
