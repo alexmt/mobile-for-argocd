@@ -29,3 +29,24 @@
     applyTheme(cur === 'dark' ? 'light' : 'dark');
   });
 })();
+
+// Mobile menu toggle
+(function() {
+  document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('menu-btn');
+    const nav = document.getElementById('mobile-nav');
+    if (!btn || !nav) return;
+
+    btn.addEventListener('click', function() {
+      const open = nav.classList.toggle('open');
+      btn.setAttribute('aria-expanded', String(open));
+    });
+
+    nav.addEventListener('click', function(e) {
+      if (e.target.tagName === 'A') {
+        nav.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+})();
