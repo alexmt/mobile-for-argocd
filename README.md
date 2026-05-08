@@ -4,6 +4,8 @@ A native iOS app for monitoring and managing [Argo CD](https://argo-cd.readthedo
 
 <img src="docs/screenshot.png" width="320" alt="Apps list" />
 
+[Download on the App Store](https://apps.apple.com/app/id6766354032)
+
 ## Features
 
 - Browse all applications with real-time health and sync status
