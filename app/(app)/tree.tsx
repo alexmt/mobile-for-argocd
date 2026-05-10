@@ -123,12 +123,12 @@ function flattenTree(
 const TreeNodeRow = React.memo(function TreeNodeRow({
   item,
   onPress,
-  onLongPress,
+  onToggle,
   last,
 }: {
   item: FlatItem;
   onPress: () => void;
-  onLongPress: () => void;
+  onToggle?: () => void;
   last: boolean;
 }) {
   const { node, depth, childCount, isExpanded } = item;
@@ -138,8 +138,6 @@ const TreeNodeRow = React.memo(function TreeNodeRow({
   return (
     <TouchableOpacity
       onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={400}
       activeOpacity={0.65}
       style={[
         styles.row,
@@ -147,8 +145,14 @@ const TreeNodeRow = React.memo(function TreeNodeRow({
         { paddingLeft: 12 + depth * INDENT },
       ]}
     >
-      {/* Expand chevron */}
-      <View style={styles.chevronWrap}>
+      {/* Expand chevron — separate tap target so row tap always opens detail */}
+      <TouchableOpacity
+        onPress={onToggle}
+        disabled={!onToggle}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={styles.chevronWrap}
+        activeOpacity={0.5}
+      >
         {childCount > 0 ? (
           <Ionicons
             name="chevron-forward"
@@ -159,7 +163,7 @@ const TreeNodeRow = React.memo(function TreeNodeRow({
         ) : (
           <View style={{ width: 11 }} />
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Kind icon */}
       <View style={styles.kindBox}>
@@ -439,7 +443,7 @@ export default function TreeScreen() {
             {activeFilterCount > 0
               ? `${filteredNodes.length} of ${treeNodes.length} resources`
               : `${treeNodes.length} resources`}{" "}
-            · tap to expand · long press for details
+            · tap for details · tap chevron to expand
           </Text>
         </View>
       </LinearGradient>
@@ -459,11 +463,10 @@ export default function TreeScreen() {
           renderItem={({ item, index }) => (
             <TreeNodeRow
               item={item}
-              onPress={() => {
-                if (item.childCount > 0) toggleExpanded(item.uid);
-                else openDetail(item.node);
-              }}
-              onLongPress={() => openDetail(item.node)}
+              onPress={() => openDetail(item.node)}
+              onToggle={
+                item.childCount > 0 ? () => toggleExpanded(item.uid) : undefined
+              }
               last={index === flatItems.length - 1}
             />
           )}

@@ -460,6 +460,91 @@ export async function deleteResource(
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
+// ── Resource actions ──────────────────────────────────────────
+
+export interface ResourceActionParam {
+  name: string;
+  value: string;
+  type: string;
+  default: string;
+}
+
+export interface ResourceAction {
+  name: string;
+  params?: ResourceActionParam[];
+  disabled?: boolean;
+  iconClass?: string;
+  displayName?: string;
+}
+
+export async function getResourceActions(
+  serverUrl: string,
+  token: string,
+  appName: string,
+  appNamespace: string,
+  group: string | undefined,
+  version: string | undefined,
+  kind: string,
+  namespace: string | undefined,
+  resourceName: string,
+): Promise<ResourceAction[]> {
+  const params = new URLSearchParams({
+    appNamespace,
+    resourceName,
+    kind,
+    group: group ?? "",
+  });
+  if (namespace) params.set("namespace", namespace);
+  if (version) params.set("version", version);
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/resource/actions?${params.toString()}`,
+    { headers: authHeader(token) },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = (await res.json()) as { actions?: ResourceAction[] };
+  const actions = data.actions ?? [];
+  actions.sort((a, b) => a.name.localeCompare(b.name));
+  return actions;
+}
+
+export async function runResourceAction(
+  serverUrl: string,
+  token: string,
+  appName: string,
+  appNamespace: string,
+  group: string | undefined,
+  version: string | undefined,
+  kind: string,
+  namespace: string | undefined,
+  resourceName: string,
+  action: string,
+  actionParams: ResourceActionParam[],
+): Promise<void> {
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/resource/actions/v2`,
+    {
+      method: "POST",
+      headers: { ...authHeader(token), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        appNamespace,
+        namespace,
+        resourceName,
+        version,
+        kind,
+        group: group ?? "",
+        action,
+        resourceActionParameters: actionParams,
+      }),
+    },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as Record<string, string>;
+    throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  }
+}
+
 export async function getManagedResource(
   serverUrl: string,
   token: string,

@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as jsYaml from "js-yaml";
 import { diffLines as computeDiff } from "diff";
 import type { ComponentProps } from "react";
@@ -28,8 +28,12 @@ import type { ComponentProps } from "react";
 import { colors } from "../lib/theme";
 import { getHealth, getSync } from "../lib/status";
 import { useArgoClient } from "../lib/client";
-import { useQueryClient } from "@tanstack/react-query";
-import type { LogEntry, ManagedResource } from "../lib/api";
+import type {
+  LogEntry,
+  ManagedResource,
+  ResourceAction,
+  ResourceActionParam,
+} from "../lib/api";
 
 const { height: SCREEN_H } = Dimensions.get("window");
 const MONO = Platform.OS === "ios" ? "Menlo" : "monospace";
@@ -1211,6 +1215,229 @@ function DeleteModal({
   );
 }
 
+// ── ActionModal ───────────────────────────────────────────────
+
+function ActionModal({
+  visible,
+  action,
+  resource,
+  appName,
+  appNamespace,
+  onCancel,
+  onDone,
+}: {
+  visible: boolean;
+  action: ResourceAction | null;
+  resource: ResourceDetailRef;
+  appName: string;
+  appNamespace: string;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const client = useArgoClient();
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    const defaults: Record<string, string> = {};
+    for (const p of action?.params ?? []) {
+      defaults[p.name] = p.default ?? "";
+    }
+    setParamValues(defaults);
+    setError(null);
+    setLoading(false);
+  }, [visible, action]);
+
+  const handleRun = async () => {
+    if (!action) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const params: ResourceActionParam[] = (action.params ?? []).map((p) => ({
+        name: p.name,
+        value: paramValues[p.name] ?? p.default ?? "",
+        type: p.type,
+        default: p.default,
+      }));
+      await client.runResourceAction(
+        appName,
+        appNamespace,
+        resource.group,
+        resource.version,
+        resource.kind,
+        resource.namespace,
+        resource.name,
+        action.name,
+        params,
+      );
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setLoading(false);
+    }
+  };
+
+  if (!action) return null;
+
+  const hasParams = (action.params ?? []).length > 0;
+  const displayName = action.displayName || action.name;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+    >
+      <View style={actionStyles.overlay}>
+        <View style={actionStyles.modal}>
+          <Text style={actionStyles.title}>{displayName}</Text>
+
+          {!hasParams && (
+            <Text style={actionStyles.message}>
+              Run <Text style={actionStyles.messageBold}>{displayName}</Text> on
+              this resource?
+            </Text>
+          )}
+
+          {hasParams &&
+            (action.params ?? []).map((p) => (
+              <View key={p.name} style={actionStyles.paramRow}>
+                <Text style={actionStyles.paramLabel}>{p.name}</Text>
+                <TextInput
+                  style={actionStyles.paramInput}
+                  value={paramValues[p.name] ?? ""}
+                  onChangeText={(v) =>
+                    setParamValues((prev) => ({ ...prev, [p.name]: v }))
+                  }
+                  placeholder={p.default ?? ""}
+                  placeholderTextColor={colors.faint}
+                />
+              </View>
+            ))}
+
+          {!!error && <Text style={actionStyles.error}>{error}</Text>}
+
+          <View style={actionStyles.buttons}>
+            <TouchableOpacity
+              onPress={onCancel}
+              disabled={loading}
+              style={actionStyles.cancelBtn}
+            >
+              <Text style={actionStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => void handleRun()}
+              disabled={loading}
+              style={actionStyles.runBtn}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={actionStyles.runText}>Run</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const actionStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modal: {
+    width: "100%",
+    backgroundColor: "#1C2140",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    padding: 20,
+    gap: 14,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
+  message: {
+    fontSize: 14,
+    color: colors.muted,
+    lineHeight: 20,
+  },
+  messageBold: {
+    fontWeight: "600",
+    color: colors.text,
+  },
+  paramRow: {
+    gap: 6,
+  },
+  paramLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.muted,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  paramInput: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+    color: colors.text,
+    fontFamily: MONO,
+  },
+  error: {
+    fontSize: 12,
+    color: colors.danger,
+    lineHeight: 17,
+  },
+  buttons: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 2,
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.muted,
+  },
+  runBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: colors.orange,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  runText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+  },
+});
+
 // ── ResourceDetailContent ──────────────────────────────────────
 
 export interface ResourceDetailContentProps {
@@ -1233,6 +1460,9 @@ export function ResourceDetailContent({
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>("summary");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ResourceAction | null>(
+    null,
+  );
 
   const resourceKey = `${resource.group}/${resource.kind}/${resource.namespace}/${resource.name}`;
   useEffect(() => {
@@ -1289,7 +1519,55 @@ export function ResourceDetailContent({
     enabled,
   });
 
-  const health = getHealth(resource.health?.status ?? "Unknown");
+  const liveResourceVersion = (
+    liveState as { metadata?: { resourceVersion?: string } } | undefined
+  )?.metadata?.resourceVersion;
+
+  const { data: actions } = useQuery({
+    queryKey: [
+      ...client.queryKeys.resourceActions(
+        appNamespace,
+        appName,
+        resource.group,
+        resource.version,
+        resource.kind,
+        resource.namespace,
+        resource.name,
+      ),
+      liveResourceVersion,
+    ],
+    queryFn: () =>
+      client.getResourceActions(
+        appName,
+        appNamespace,
+        resource.group,
+        resource.version,
+        resource.kind,
+        resource.namespace,
+        resource.name,
+      ),
+    enabled: enabled && liveResourceVersion !== undefined,
+  });
+
+  // Read live health from tree cache (kept current by watchResourceTree stream)
+  const { data: treeData } = useQuery({
+    queryKey: client.queryKeys.resourceTree(appNamespace, appName),
+    queryFn: () => client.getResourceTree(appName, appNamespace),
+    enabled: false,
+  });
+
+  const liveHealth = useMemo(() => {
+    const node = treeData?.nodes?.find(
+      (n) =>
+        n.kind === resource.kind &&
+        n.name === resource.name &&
+        (n.namespace ?? "") === (resource.namespace ?? "") &&
+        (n.group ?? "") === (resource.group ?? ""),
+    );
+    return node?.health ?? resource.health;
+  }, [treeData, resource]);
+
+  const health = getHealth(liveHealth?.status ?? "Unknown");
   const sync = resource.syncStatus ? getSync(resource.syncStatus) : null;
   const hasDesired = !!managed?.targetState;
   const hasDiff =
@@ -1372,7 +1650,7 @@ export function ResourceDetailContent({
             >
               <Ionicons name={health.icon} size={11} color={health.color} />
               <Text style={[styles.pillText, { color: health.color }]}>
-                {resource.health?.status ?? "Unknown"}
+                {liveHealth?.status ?? "Unknown"}
               </Text>
             </View>
             {sync && (
@@ -1390,6 +1668,43 @@ export function ResourceDetailContent({
             )}
           </View>
         </View>
+
+        {/* Action chips */}
+        {!!actions?.length && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.actionChipsBar}
+            contentContainerStyle={styles.actionChipsInner}
+          >
+            {actions.map((action) => (
+              <TouchableOpacity
+                key={action.name}
+                disabled={!!action.disabled}
+                onPress={() => setConfirmAction(action)}
+                style={[
+                  styles.actionChip,
+                  !!action.disabled && styles.actionChipDisabled,
+                ]}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="play-circle-outline"
+                  size={13}
+                  color={action.disabled ? colors.faint : colors.orange}
+                />
+                <Text
+                  style={[
+                    styles.actionChipText,
+                    !!action.disabled && styles.actionChipTextDisabled,
+                  ]}
+                >
+                  {action.displayName || action.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Tab bar */}
         <ScrollView
@@ -1454,6 +1769,29 @@ export function ResourceDetailContent({
               ))}
           </ScrollView>
         )}
+
+        <ActionModal
+          visible={confirmAction !== null}
+          action={confirmAction}
+          resource={resource}
+          appName={appName}
+          appNamespace={appNamespace}
+          onCancel={() => setConfirmAction(null)}
+          onDone={() => {
+            setConfirmAction(null);
+            void queryClient.invalidateQueries({
+              queryKey: client.queryKeys.resource(
+                appNamespace,
+                appName,
+                resource.group,
+                resource.version,
+                resource.kind,
+                resource.namespace,
+                resource.name,
+              ),
+            });
+          }}
+        />
 
         <DeleteModal
           visible={showDeleteModal}
@@ -1611,6 +1949,42 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 0.1,
+  },
+
+  // Action chips
+  actionChipsBar: {
+    flexGrow: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  actionChipsInner: {
+    flexDirection: "row",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  actionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(239,123,77,0.4)",
+    backgroundColor: "rgba(239,123,77,0.08)",
+  },
+  actionChipDisabled: {
+    borderColor: colors.hairline,
+    backgroundColor: "transparent",
+  },
+  actionChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.orange,
+  },
+  actionChipTextDisabled: {
+    color: colors.faint,
   },
 
   // Tab bar
