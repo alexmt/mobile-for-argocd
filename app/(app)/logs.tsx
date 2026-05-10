@@ -182,7 +182,6 @@ export default function LogsScreen() {
         podName ?? resourceName ?? "",
       ),
     enabled: hasPod,
-    staleTime: 60_000,
   });
 
   useEffect(() => {

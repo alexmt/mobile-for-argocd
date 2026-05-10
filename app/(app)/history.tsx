@@ -244,7 +244,6 @@ export default function HistoryScreen() {
   const { data: app, isLoading } = useQuery({
     queryKey: client.queryKeys.application(namespace, name),
     queryFn: () => client.getApplication(name, namespace),
-    staleTime: 30_000,
   });
 
   const rollbackMutation = useMutation({

@@ -264,8 +264,6 @@ export default function DiffScreen() {
   const { data, isLoading, error } = useQuery({
     queryKey: client.queryKeys.managedResources(namespace, name),
     queryFn: () => client.getManagedResources(name, namespace),
-    staleTime: 0,
-    gcTime: 0,
   });
 
   const diffs = useMemo(

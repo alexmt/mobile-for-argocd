@@ -221,7 +221,6 @@ export default function TreeScreen() {
   const { data: treeData, isLoading } = useQuery({
     queryKey: client.queryKeys.resourceTree(namespace, name),
     queryFn: () => client.getResourceTree(name, namespace),
-    staleTime: 30_000,
   });
 
   const treeNodes = useMemo(() => treeData?.nodes ?? [], [treeData?.nodes]);

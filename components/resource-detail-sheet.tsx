@@ -28,6 +28,7 @@ import type { ComponentProps } from "react";
 import { colors } from "../lib/theme";
 import { getHealth, getSync } from "../lib/status";
 import { useArgoClient } from "../lib/client";
+import { useQueryClient } from "@tanstack/react-query";
 import type { LogEntry, ManagedResource } from "../lib/api";
 
 const { height: SCREEN_H } = Dimensions.get("window");
@@ -63,7 +64,10 @@ export interface ResourceDetailRef {
   info?: { name: string; value: string }[];
   images?: string[];
   createdAt?: string;
+  children?: { kind: string; name: string }[];
 }
+
+type DeleteStrategy = "foreground" | "background" | "orphan";
 
 export interface ResourceDetailSheetProps {
   visible: boolean;
@@ -71,6 +75,7 @@ export interface ResourceDetailSheetProps {
   appName: string;
   appNamespace: string;
   resource: ResourceDetailRef | null;
+  onDeleted?: () => void;
 }
 
 // ── YAML tokenizer ─────────────────────────────────────────────
@@ -722,7 +727,6 @@ function LogsTabContent({
         resource.namespace,
         resource.name,
       ),
-    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -1009,6 +1013,204 @@ function LogsTabContent({
   );
 }
 
+// ── Delete modal ───────────────────────────────────────────────
+
+const STRATEGIES: { id: DeleteStrategy; label: string; sub: string }[] = [
+  {
+    id: "foreground",
+    label: "Foreground",
+    sub: "Delete after dependents are removed",
+  },
+  {
+    id: "background",
+    label: "Background",
+    sub: "Delete immediately; garbage-collect dependents",
+  },
+  {
+    id: "orphan",
+    label: "Orphan",
+    sub: "Delete resource; leave dependents intact",
+  },
+];
+
+function DeleteModal({
+  visible,
+  resource,
+  isManaged,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  resource: ResourceDetailRef;
+  isManaged: boolean;
+  onCancel: () => void;
+  onConfirm: (force: boolean, orphan: boolean) => void;
+}) {
+  const [strategy, setStrategy] = useState<DeleteStrategy>("foreground");
+  const [confirmText, setConfirmText] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setStrategy("foreground");
+      setConfirmText("");
+      setLoading(false);
+    }
+  }, [visible]);
+
+  const isValid = !isManaged || confirmText === resource.name;
+  const children = resource.children ?? [];
+  const SHOW_MAX = 4;
+
+  async function handleDelete() {
+    setLoading(true);
+    try {
+      await onConfirm(strategy === "background", strategy === "orphan");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onCancel}
+    >
+      <View style={deleteStyles.overlay}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          onPress={onCancel}
+          activeOpacity={1}
+        />
+        <View style={deleteStyles.dialog}>
+          {/* Header */}
+          <View style={deleteStyles.dialogHeader}>
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            <Text style={deleteStyles.dialogTitle} numberOfLines={1}>
+              Delete {resource.kind} — {resource.name}
+            </Text>
+          </View>
+
+          <ScrollView
+            style={deleteStyles.dialogBody}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Warning */}
+            <Text style={deleteStyles.warningText}>
+              Deleting resources can be{" "}
+              <Text style={{ color: colors.danger, fontWeight: "700" }}>
+                dangerous
+              </Text>
+              . Be sure you understand the effects before continuing.
+            </Text>
+
+            {/* Dependent resources */}
+            {children.length > 0 && (
+              <View style={deleteStyles.childrenBlock}>
+                <Text style={deleteStyles.childrenLabel}>
+                  DEPENDENT RESOURCES
+                </Text>
+                {children.slice(0, SHOW_MAX).map((c, i) => (
+                  <View key={i} style={deleteStyles.childRow}>
+                    <Text style={deleteStyles.childText}>
+                      {c.kind}/{c.name}
+                    </Text>
+                  </View>
+                ))}
+                {children.length > SHOW_MAX && (
+                  <Text style={deleteStyles.moreText}>
+                    and {children.length - SHOW_MAX} more
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Strategy */}
+            <Text style={deleteStyles.sectionLabel}>DELETION STRATEGY</Text>
+            <View style={deleteStyles.strategyBlock}>
+              {STRATEGIES.map((s, i) => (
+                <TouchableOpacity
+                  key={s.id}
+                  onPress={() => setStrategy(s.id)}
+                  activeOpacity={0.7}
+                  style={[
+                    deleteStyles.strategyRow,
+                    i < STRATEGIES.length - 1 && deleteStyles.strategyBorder,
+                  ]}
+                >
+                  <View
+                    style={[
+                      deleteStyles.radio,
+                      strategy === s.id && deleteStyles.radioActive,
+                    ]}
+                  >
+                    {strategy === s.id && (
+                      <View style={deleteStyles.radioDot} />
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={deleteStyles.strategyLabel}>{s.label}</Text>
+                    <Text style={deleteStyles.strategySub}>{s.sub}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Confirmation input */}
+            {isManaged && (
+              <View style={deleteStyles.confirmBlock}>
+                <Text style={deleteStyles.sectionLabel}>
+                  TYPE{" "}
+                  <Text style={deleteStyles.confirmName}>{resource.name}</Text>{" "}
+                  TO CONFIRM
+                </Text>
+                <TextInput
+                  style={deleteStyles.confirmInput}
+                  value={confirmText}
+                  onChangeText={setConfirmText}
+                  placeholder={resource.name}
+                  placeholderTextColor={colors.faint}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Footer */}
+          <View style={deleteStyles.dialogFooter}>
+            <TouchableOpacity
+              onPress={onCancel}
+              activeOpacity={0.7}
+              style={deleteStyles.cancelBtn}
+            >
+              <Text style={deleteStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => void handleDelete()}
+              disabled={!isValid || loading}
+              activeOpacity={0.8}
+              style={[
+                deleteStyles.deleteBtn,
+                (!isValid || loading) && deleteStyles.deleteBtnDisabled,
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={deleteStyles.deleteText}>Delete</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── ResourceDetailContent ──────────────────────────────────────
 
 export interface ResourceDetailContentProps {
@@ -1016,6 +1218,7 @@ export interface ResourceDetailContentProps {
   appName: string;
   appNamespace: string;
   onClose: () => void;
+  onDeleted?: () => void;
 }
 
 export function ResourceDetailContent({
@@ -1023,10 +1226,13 @@ export function ResourceDetailContent({
   appName,
   appNamespace,
   onClose,
+  onDeleted,
 }: ResourceDetailContentProps) {
   const insets = useSafeAreaInsets();
   const client = useArgoClient();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabId>("summary");
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const resourceKey = `${resource.group}/${resource.kind}/${resource.namespace}/${resource.name}`;
   useEffect(() => {
@@ -1060,8 +1266,6 @@ export function ResourceDetailContent({
         resource.name,
       ),
     enabled,
-    staleTime: 0,
-    gcTime: 0,
   });
 
   const { data: managed } = useQuery({
@@ -1083,8 +1287,6 @@ export function ResourceDetailContent({
         resource.name,
       ),
     enabled,
-    staleTime: 0,
-    gcTime: 0,
   });
 
   const health = getHealth(resource.health?.status ?? "Unknown");
@@ -1130,12 +1332,25 @@ export function ResourceDetailContent({
                 {kindGk}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={onClose}
-              hitSlop={{ top: 8, bottom: 8, left: 12, right: 8 }}
-            >
-              <Text style={styles.doneBtn}>Done</Text>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                onPress={() => setShowDeleteModal(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.trashBtn}
+              >
+                <Ionicons
+                  name="trash-outline"
+                  size={16}
+                  color={colors.danger}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onClose}
+                hitSlop={{ top: 8, bottom: 8, left: 12, right: 8 }}
+              >
+                <Text style={styles.doneBtn}>Done</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={styles.headerName} numberOfLines={1}>
@@ -1239,6 +1454,32 @@ export function ResourceDetailContent({
               ))}
           </ScrollView>
         )}
+
+        <DeleteModal
+          visible={showDeleteModal}
+          resource={resource}
+          isManaged={!!managed}
+          onCancel={() => setShowDeleteModal(false)}
+          onConfirm={async (force, orphan) => {
+            await client.deleteResource(
+              appName,
+              appNamespace,
+              resource.group,
+              resource.version,
+              resource.kind,
+              resource.namespace,
+              resource.name,
+              force,
+              orphan,
+            );
+            setShowDeleteModal(false);
+            void queryClient.invalidateQueries({
+              queryKey: client.queryKeys.application(appNamespace, appName),
+            });
+            onClose();
+            onDeleted?.();
+          }}
+        />
       </View>
     </View>
   );
@@ -1252,6 +1493,7 @@ export function ResourceDetailSheet({
   appName,
   appNamespace,
   resource,
+  onDeleted,
 }: ResourceDetailSheetProps) {
   if (!resource) return null;
   return (
@@ -1267,6 +1509,7 @@ export function ResourceDetailSheet({
         appName={appName}
         appNamespace={appNamespace}
         onClose={onClose}
+        onDeleted={onDeleted}
       />
     </Modal>
   );
@@ -1310,6 +1553,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  trashBtn: {
+    padding: 2,
   },
   kindRow: {
     flexDirection: "row",
@@ -1766,5 +2017,192 @@ const logTabStyles = StyleSheet.create({
     fontSize: 13,
     color: colors.orange,
     fontWeight: "600",
+  },
+});
+
+// ── Delete modal styles ────────────────────────────────────────
+
+const deleteStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.65)",
+    padding: 20,
+  },
+  dialog: {
+    width: "100%",
+    maxHeight: "80%",
+    backgroundColor: "#171B33",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    overflow: "hidden",
+  },
+  dialogHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  dialogTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.text,
+    letterSpacing: -0.2,
+  },
+  dialogBody: {
+    flexGrow: 0,
+    padding: 16,
+  },
+  warningText: {
+    fontSize: 13,
+    color: colors.muted,
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+  childrenBlock: {
+    marginBottom: 14,
+  },
+  childrenLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: colors.faint,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  childRow: {
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
+  childText: {
+    fontSize: 12,
+    fontFamily: MONO,
+    color: colors.muted,
+  },
+  moreText: {
+    fontSize: 12,
+    color: colors.faint,
+    paddingLeft: 8,
+    paddingTop: 2,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    color: colors.faint,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  strategyBlock: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    overflow: "hidden",
+    marginBottom: 14,
+  },
+  strategyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  strategyBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+  },
+  radio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.hairlineHi,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  radioActive: {
+    borderColor: colors.orange,
+  },
+  radioDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.orange,
+  },
+  strategyLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 1,
+  },
+  strategySub: {
+    fontSize: 11,
+    color: colors.faint,
+    lineHeight: 15,
+  },
+  confirmBlock: {
+    marginBottom: 4,
+  },
+  confirmName: {
+    fontFamily: MONO,
+    color: colors.text,
+  },
+  confirmInput: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    fontFamily: MONO,
+    color: colors.text,
+    marginTop: 4,
+  },
+  dialogFooter: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    alignItems: "center",
+  },
+  cancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  deleteBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,107,107,0.20)",
+    borderWidth: 1,
+    borderColor: colors.danger,
+    alignItems: "center",
+  },
+  deleteBtnDisabled: {
+    opacity: 0.4,
+  },
+  deleteText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.danger,
   },
 });
