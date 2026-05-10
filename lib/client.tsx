@@ -6,11 +6,13 @@ import {
   getManagedResource,
   getManagedResources,
   getResource,
+  getResourceActions,
   getResourceTree,
   getUserInfo,
   listApplications,
   refreshApplication,
   rollbackApplication,
+  runResourceAction,
   streamLogs,
   syncApplication,
   watchApplication,
@@ -18,6 +20,8 @@ import {
   watchResourceTree,
   type Application,
   type LogEntry,
+  type ResourceAction,
+  type ResourceActionParam,
   type ResourceTree,
   type SyncApplicationOptions,
   type UserInfo,
@@ -83,6 +87,26 @@ export class ArgoClient {
           appNamespace,
           appName,
           group,
+          kind,
+          namespace,
+          name,
+        ] as const,
+      resourceActions: (
+        appNamespace: string,
+        appName: string,
+        group: string | undefined,
+        version: string | undefined,
+        kind: string,
+        namespace: string | undefined,
+        name: string,
+      ) =>
+        [
+          "resourceActions",
+          s,
+          appNamespace,
+          appName,
+          group,
+          version,
           kind,
           namespace,
           name,
@@ -231,6 +255,54 @@ export class ArgoClient {
       resourceName,
       force,
       orphan,
+    );
+  }
+
+  getResourceActions(
+    appName: string,
+    appNamespace: string,
+    group: string | undefined,
+    version: string | undefined,
+    kind: string,
+    namespace: string | undefined,
+    resourceName: string,
+  ): Promise<ResourceAction[]> {
+    return getResourceActions(
+      this.serverUrl,
+      this.token,
+      appName,
+      appNamespace,
+      group,
+      version,
+      kind,
+      namespace,
+      resourceName,
+    );
+  }
+
+  runResourceAction(
+    appName: string,
+    appNamespace: string,
+    group: string | undefined,
+    version: string | undefined,
+    kind: string,
+    namespace: string | undefined,
+    resourceName: string,
+    action: string,
+    actionParams: ResourceActionParam[],
+  ): Promise<void> {
+    return runResourceAction(
+      this.serverUrl,
+      this.token,
+      appName,
+      appNamespace,
+      group,
+      version,
+      kind,
+      namespace,
+      resourceName,
+      action,
+      actionParams,
     );
   }
 
