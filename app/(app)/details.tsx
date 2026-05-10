@@ -301,6 +301,12 @@ function ResourceGroup({
                 info: treeNode?.info,
                 images: treeNode?.images,
                 createdAt: treeNode?.createdAt,
+                children: treeNode?.uid
+                  ? (childMap.get(treeNode.uid) ?? []).map((c) => ({
+                      kind: c.kind,
+                      name: c.name,
+                    }))
+                  : [],
               })
             }
             last={i === items.length - 1}
@@ -333,7 +339,7 @@ export default function AppDetailsScreen() {
   const client = useArgoClient();
   const queryClient = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
-  const watchingRef = useRef(false);
+  const latestRvRef = useRef<string | null>(null);
   const [syncSheetOpen, setSyncSheetOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { filter: resourceFilter, setFilter: setResourceFilter } =
@@ -341,27 +347,18 @@ export default function AppDetailsScreen() {
   const [showResourceFilter, setShowResourceFilter] = useState(false);
 
   const queryKey = client.queryKeys.application(namespace, name);
-  const [treeSheet, setTreeSheet] = useState<{
-    title: string;
-    nodes: ResourceNode[];
-  } | null>(null);
+  const [treeSheet, setTreeSheet] = useState<ResourceNode | null>(null);
   const [detailResource, setDetailResource] =
     useState<ResourceDetailRef | null>(null);
 
-  const {
-    data: app,
-    isLoading,
-    refetch,
-  } = useQuery({
+  const { data: app, isLoading } = useQuery({
     queryKey,
     queryFn: () => client.getApplication(name, namespace),
-    staleTime: 30_000,
   });
 
   const { data: treeData } = useQuery({
     queryKey: client.queryKeys.resourceTree(namespace, name),
     queryFn: () => client.getResourceTree(name, namespace),
-    staleTime: 30_000,
     enabled: !!app,
   });
 
@@ -383,52 +380,83 @@ export default function AppDetailsScreen() {
     return map;
   }, [treeNodes]);
 
-  // Live watch — start once; subsequent resourceVersion changes are no-ops
+  // Live watch loop — starts once when initial app data arrives, reconnects automatically
   useEffect(() => {
-    const rv = app?.metadata?.resourceVersion;
-    if (!rv || watchingRef.current) return;
+    if (!app) return;
 
-    watchingRef.current = true;
+    const rv = app.metadata.resourceVersion;
+    if (!rv) return;
+
+    latestRvRef.current = rv;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
-    const watch = async () => {
-      try {
-        await client.watchApplication(
-          name,
-          namespace,
-          rv,
-          (type, updated) => {
-            if (ctrl.signal.aborted) return;
-            if (type === "DELETED") {
-              void router.back();
-              return;
-            }
-            queryClient.setQueryData<Application>(queryKey, updated);
-          },
-          ctrl.signal,
-        );
-      } catch {
-        if (!ctrl.signal.aborted) {
-          watchingRef.current = false;
-          void refetch();
+    const runWatch = async () => {
+      while (!ctrl.signal.aborted) {
+        const currentRv = latestRvRef.current;
+        if (!currentRv) break;
+        try {
+          await client.watchApplication(
+            name,
+            namespace,
+            currentRv,
+            (type, updated) => {
+              if (ctrl.signal.aborted) return;
+              if (type === "DELETED") {
+                void router.back();
+                return;
+              }
+              if (updated.metadata.resourceVersion) {
+                latestRvRef.current = updated.metadata.resourceVersion;
+              }
+              queryClient.setQueryData<Application>(queryKey, updated);
+            },
+            ctrl.signal,
+          );
+        } catch {
+          if (ctrl.signal.aborted) return;
+          await new Promise<void>((r) => setTimeout(r, 2_000));
         }
       }
     };
 
-    void watch();
+    void runWatch();
     return () => {
-      watchingRef.current = false;
       ctrl.abort();
     };
-  }, [app?.metadata?.resourceVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [!!app]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Abort watch on unmount
+  // Resource tree watch loop — streams live node updates once app is loaded
   useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
+    if (!app) return;
+
+    const ctrl = new AbortController();
+
+    const runWatch = async () => {
+      while (!ctrl.signal.aborted) {
+        try {
+          await client.watchResourceTree(
+            name,
+            namespace,
+            (tree) => {
+              if (ctrl.signal.aborted) return;
+              queryClient.setQueryData(
+                client.queryKeys.resourceTree(namespace, name),
+                tree,
+              );
+            },
+            ctrl.signal,
+          );
+        } catch {
+          if (ctrl.signal.aborted) return;
+          await new Promise<void>((r) => setTimeout(r, 2_000));
+        }
+      }
     };
-  }, []);
+
+    void runWatch();
+    return () => ctrl.abort();
+  }, [!!app]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -770,12 +798,7 @@ export default function AppDetailsScreen() {
                     appNamespace={app.metadata.namespace}
                     treeNodes={treeNodes}
                     childMap={childMap}
-                    onDrillDown={(node) =>
-                      setTreeSheet({
-                        title: `${node.kind}: ${node.name}`,
-                        nodes: node.uid ? (childMap.get(node.uid) ?? []) : [],
-                      })
-                    }
+                    onDrillDown={(node) => setTreeSheet(node)}
                     onSelectResource={setDetailResource}
                   />
                 </View>
@@ -879,8 +902,7 @@ export default function AppDetailsScreen() {
       <ResourceTreeSheet
         visible={treeSheet !== null}
         onClose={() => setTreeSheet(null)}
-        initialTitle={treeSheet?.title ?? ""}
-        initialNodes={treeSheet?.nodes ?? []}
+        rootNode={treeSheet}
         childMap={childMap}
         appName={name}
         appNamespace={namespace}

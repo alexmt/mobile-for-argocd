@@ -426,6 +426,40 @@ export async function getResource(
   return data.manifest ? (JSON.parse(data.manifest) as object) : {};
 }
 
+export async function deleteResource(
+  serverUrl: string,
+  token: string,
+  appName: string,
+  appNamespace: string,
+  group: string | undefined,
+  version: string | undefined,
+  kind: string,
+  namespace: string | undefined,
+  resourceName: string,
+  force: boolean,
+  orphan: boolean,
+): Promise<void> {
+  const params = new URLSearchParams({
+    appNamespace,
+    resourceName,
+    kind,
+    group: group ?? "",
+  });
+  if (namespace) params.set("namespace", namespace);
+  if (version) params.set("version", version);
+  if (force) params.set("force", "true");
+  if (orphan) params.set("orphan", "true");
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/resource?${params.toString()}`,
+    {
+      method: "DELETE",
+      headers: { ...authHeader(token), "Content-Type": "application/json" },
+    },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function getManagedResource(
   serverUrl: string,
   token: string,
@@ -466,6 +500,60 @@ export async function getResourceTree(
   if (res.status === 401) throw new Error("Unauthorized");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<ResourceTree>;
+}
+
+export function watchResourceTree(
+  serverUrl: string,
+  token: string,
+  name: string,
+  namespace: string,
+  onTree: (tree: ResourceTree) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const RNEventSource = require("react-native-sse")
+    .default as typeof import("react-native-sse").default;
+
+  const url = `${serverUrl}/api/v1/stream/applications/${encodeURIComponent(name)}/resource-tree?appNamespace=${encodeURIComponent(namespace)}`;
+
+  return new Promise((resolve, reject) => {
+    const es = new RNEventSource(url, { headers: authHeader(token) });
+    const cleanup = () => es.close();
+
+    es.addEventListener("message", (event) => {
+      if (!event.data) return;
+      try {
+        const evt = JSON.parse(event.data) as {
+          result?: ResourceTree;
+          error?: { message: string };
+        };
+        if (evt.error) {
+          cleanup();
+          reject(new Error(evt.error.message));
+          return;
+        }
+        if (evt.result) onTree(evt.result);
+      } catch {
+        // skip malformed messages
+      }
+    });
+
+    es.addEventListener("error", (event) => {
+      cleanup();
+      if ("xhrStatus" in event && event.xhrStatus === 401) {
+        reject(new Error("Unauthorized"));
+      } else {
+        const msg = "message" in event ? event.message : "Watch error";
+        reject(new Error(msg));
+      }
+    });
+
+    es.addEventListener("close", () => resolve());
+    signal.addEventListener("abort", () => {
+      cleanup();
+      resolve();
+    });
+  });
 }
 
 // ── Managed resources / diff ──────────────────────────────────

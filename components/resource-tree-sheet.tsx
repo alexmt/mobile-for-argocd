@@ -133,16 +133,16 @@ function NodeRow({
 
 // ── Resource tree sheet ───────────────────────────────────────
 
+// Stack entry stores parent UID so nodes are derived live from childMap on every render
 interface Level {
   title: string;
-  nodes: ResourceNode[];
+  parentUid: string;
 }
 
 export interface ResourceTreeSheetProps {
   visible: boolean;
   onClose: () => void;
-  initialTitle: string;
-  initialNodes: ResourceNode[];
+  rootNode: ResourceNode | null;
   childMap: Map<string, ResourceNode[]>;
   appName: string;
   appNamespace: string;
@@ -151,8 +151,7 @@ export interface ResourceTreeSheetProps {
 export function ResourceTreeSheet({
   visible,
   onClose,
-  initialTitle,
-  initialNodes,
+  rootNode,
   childMap,
   appName,
   appNamespace,
@@ -162,16 +161,20 @@ export function ResourceTreeSheet({
   const [detailNode, setDetailNode] = useState<ResourceDetailRef | null>(null);
 
   useEffect(() => {
-    if (visible) {
-      setStack([{ title: initialTitle, nodes: initialNodes }]);
+    if (visible && rootNode) {
+      setStack([{ title: nodeTitle(rootNode), parentUid: rootNode.uid ?? "" }]);
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const current = stack[stack.length - 1];
+  // Always derive from live childMap — never store stale node arrays in the stack
+  const currentNodes = current ? (childMap.get(current.parentUid) ?? []) : [];
 
   const push = (node: ResourceNode) => {
-    const children = node.uid ? (childMap.get(node.uid) ?? []) : [];
-    setStack((s) => [...s, { title: nodeTitle(node), nodes: children }]);
+    setStack((s) => [
+      ...s,
+      { title: nodeTitle(node), parentUid: node.uid ?? "" },
+    ]);
   };
 
   const pop = () => {
@@ -248,13 +251,13 @@ export function ResourceTreeSheet({
 
           {/* Count */}
           <Text style={styles.countLabel}>
-            {current.nodes.length}{" "}
-            {current.nodes.length === 1 ? "resource" : "resources"}
+            {currentNodes.length}{" "}
+            {currentNodes.length === 1 ? "resource" : "resources"}
           </Text>
 
           {/* List */}
           <FlatList
-            data={current.nodes}
+            data={currentNodes}
             keyExtractor={nodeKey}
             renderItem={({ item, index }) => {
               const children = item.uid ? (childMap.get(item.uid) ?? []) : [];
@@ -276,7 +279,7 @@ export function ResourceTreeSheet({
                       createdAt: item.createdAt,
                     })
                   }
-                  last={index === current.nodes.length - 1}
+                  last={index === currentNodes.length - 1}
                 />
               );
             }}

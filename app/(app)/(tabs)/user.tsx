@@ -57,7 +57,6 @@ export default function UserScreen() {
   const { data: userInfo, isLoading } = useQuery({
     queryKey: client.queryKeys.userInfo(),
     queryFn: () => client.getUserInfo(),
-    staleTime: 5 * 60_000,
   });
 
   const handleLogout = () => {

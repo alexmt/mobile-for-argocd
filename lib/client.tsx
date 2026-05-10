@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import {
+  deleteResource,
   getApplication,
   getManagedResource,
   getManagedResources,
@@ -14,8 +15,10 @@ import {
   syncApplication,
   watchApplication,
   watchApplications,
+  watchResourceTree,
   type Application,
   type LogEntry,
+  type ResourceTree,
   type SyncApplicationOptions,
   type UserInfo,
 } from "./api";
@@ -187,6 +190,48 @@ export class ArgoClient {
 
   getResourceTree(name: string, namespace: string) {
     return getResourceTree(this.serverUrl, this.token, name, namespace);
+  }
+
+  watchResourceTree(
+    name: string,
+    namespace: string,
+    onTree: (tree: ResourceTree) => void,
+    signal: AbortSignal,
+  ) {
+    return watchResourceTree(
+      this.serverUrl,
+      this.token,
+      name,
+      namespace,
+      onTree,
+      signal,
+    );
+  }
+
+  deleteResource(
+    appName: string,
+    appNamespace: string,
+    group: string | undefined,
+    version: string | undefined,
+    kind: string,
+    namespace: string | undefined,
+    resourceName: string,
+    force: boolean,
+    orphan: boolean,
+  ): Promise<void> {
+    return deleteResource(
+      this.serverUrl,
+      this.token,
+      appName,
+      appNamespace,
+      group,
+      version,
+      kind,
+      namespace,
+      resourceName,
+      force,
+      orphan,
+    );
   }
 
   streamLogs(
