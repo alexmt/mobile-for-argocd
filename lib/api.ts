@@ -460,6 +460,43 @@ export async function deleteResource(
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
+export async function patchResource(
+  serverUrl: string,
+  token: string,
+  appName: string,
+  appNamespace: string,
+  group: string | undefined,
+  version: string | undefined,
+  kind: string,
+  namespace: string | undefined,
+  resourceName: string,
+  patch: string,
+  patchType = "application/merge-patch+json",
+): Promise<void> {
+  const params = new URLSearchParams({
+    appNamespace,
+    resourceName,
+    kind,
+    group: group ?? "",
+    patchType,
+  });
+  if (namespace) params.set("namespace", namespace);
+  if (version) params.set("version", version);
+  const res = await fetch(
+    `${serverUrl}/api/v1/applications/${encodeURIComponent(appName)}/resource?${params.toString()}`,
+    {
+      method: "POST",
+      headers: { ...authHeader(token), "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (res.status === 401) throw new Error("Unauthorized");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as Record<string, string>;
+    throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  }
+}
+
 // ── Resource actions ──────────────────────────────────────────
 
 export interface ResourceActionParam {

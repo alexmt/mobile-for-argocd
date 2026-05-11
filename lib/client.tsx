@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "expo-router";
 import {
   deleteResource,
+  patchResource,
   getApplication,
   getManagedResource,
   getManagedResources,
@@ -255,6 +256,32 @@ export class ArgoClient {
       resourceName,
       force,
       orphan,
+    );
+  }
+
+  patchResource(
+    appName: string,
+    appNamespace: string,
+    group: string | undefined,
+    version: string | undefined,
+    kind: string,
+    namespace: string | undefined,
+    resourceName: string,
+    patch: string,
+    patchType?: string,
+  ): Promise<void> {
+    return patchResource(
+      this.serverUrl,
+      this.token,
+      appName,
+      appNamespace,
+      group,
+      version,
+      kind,
+      namespace,
+      resourceName,
+      patch,
+      patchType,
     );
   }
 
