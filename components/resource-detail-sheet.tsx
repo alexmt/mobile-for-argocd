@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as jsYaml from "js-yaml";
+import * as jsonMergePatch from "json-merge-patch";
 import { diffLines as computeDiff } from "diff";
 import type { ComponentProps } from "react";
 
@@ -595,34 +596,174 @@ function LiveContent({
   state,
   isLoading,
   error,
+  appName,
+  appNamespace,
+  resource,
 }: {
   state: object | undefined;
   isLoading: boolean;
   error: Error | null;
+  appName: string;
+  appNamespace: string;
+  resource: ResourceDetailRef;
 }) {
+  const client = useArgoClient();
+  const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const [hideMgd, setHideMgd] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editYaml, setEditYaml] = useState("");
+  const [editBase, setEditBase] = useState<Record<string, unknown>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const yaml = useMemo(() => {
     if (!state) return "";
     return objectToYaml(hideMgd ? removeManagedFields(state) : state);
   }, [state, hideMgd]);
+
+  const startEdit = () => {
+    const base = (hideMgd ? removeManagedFields(state!) : state!) as Record<
+      string,
+      unknown
+    >;
+    setEditBase(base);
+    setEditYaml(objectToYaml(base));
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setSaveError(null);
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      let updated: Record<string, unknown>;
+      try {
+        updated = jsYaml.load(editYaml) as Record<string, unknown>;
+      } catch (e) {
+        throw new Error(
+          `Invalid YAML: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+      const patch = jsonMergePatch.generate(editBase, updated) ?? {};
+      await client.patchResource(
+        appName,
+        appNamespace,
+        resource.group,
+        resource.version,
+        resource.kind,
+        resource.namespace,
+        resource.name,
+        JSON.stringify(patch),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: client.queryKeys.resource(
+          appNamespace,
+          appName,
+          resource.group,
+          resource.version,
+          resource.kind,
+          resource.namespace,
+          resource.name,
+        ),
+      });
+      setEditing(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (isLoading) return <StateBlock loading />;
   if (error) return <StateBlock message={error.message} />;
   if (!state) return <StateBlock message="No live state available" />;
 
   return (
-    <View>
-      <TouchableOpacity
-        onPress={() => setHideMgd((v) => !v)}
-        activeOpacity={0.75}
-        style={styles.toggleRow}
-      >
-        <View style={[styles.check, hideMgd && styles.checkOn]}>
-          {hideMgd && <Ionicons name="checkmark" size={10} color="#fff" />}
+    <View style={styles.liveRoot}>
+      {/* Sticky toolbar */}
+      <View style={styles.liveToolbar}>
+        {!editing && (
+          <TouchableOpacity
+            onPress={() => setHideMgd((v) => !v)}
+            activeOpacity={0.75}
+            style={styles.mgdToggle}
+          >
+            <View style={[styles.check, hideMgd && styles.checkOn]}>
+              {hideMgd && <Ionicons name="checkmark" size={10} color="#fff" />}
+            </View>
+            <Text style={styles.toggleLabel}>Hide managed fields</Text>
+          </TouchableOpacity>
+        )}
+        {editing ? (
+          <View style={styles.editBtnGroup}>
+            <TouchableOpacity
+              onPress={cancelEdit}
+              disabled={saving}
+              activeOpacity={0.7}
+              style={styles.editCancelBtn}
+            >
+              <Text style={styles.editCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => void saveEdit()}
+              disabled={saving}
+              activeOpacity={0.7}
+              style={styles.editSaveBtn}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.editSaveText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            onPress={startEdit}
+            activeOpacity={0.7}
+            style={styles.editBtnInline}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="pencil-outline" size={13} color={colors.orange} />
+            <Text style={styles.editBtnInlineText}>Edit</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {!!saveError && (
+        <View style={styles.saveErrorRow}>
+          <Text style={styles.saveErrorText}>{saveError}</Text>
         </View>
-        <Text style={styles.toggleLabel}>Hide managed fields</Text>
-      </TouchableOpacity>
-      <HighlightedYaml yaml={yaml} />
+      )}
+
+      {/* Scrollable content */}
+      <ScrollView
+        style={styles.liveScroll}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {editing ? (
+          <TextInput
+            multiline
+            value={editYaml}
+            onChangeText={setEditYaml}
+            style={styles.yamlEditInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            textAlignVertical="top"
+            scrollEnabled={false}
+          />
+        ) : (
+          <HighlightedYaml yaml={yaml} />
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -1498,25 +1639,10 @@ export function ResourceDetailContent({
     enabled,
   });
 
-  const { data: managed } = useQuery({
-    queryKey: client.queryKeys.managedResource(
-      appNamespace,
-      appName,
-      resource.group,
-      resource.kind,
-      resource.namespace,
-      resource.name,
-    ),
-    queryFn: () =>
-      client.getManagedResource(
-        appName,
-        appNamespace,
-        resource.group,
-        resource.kind,
-        resource.namespace,
-        resource.name,
-      ),
-    enabled,
+  const { data: appData } = useQuery({
+    queryKey: client.queryKeys.application(appNamespace, appName),
+    queryFn: () => client.getApplication(appName, appNamespace),
+    enabled: false,
   });
 
   const liveResourceVersion = (
@@ -1549,26 +1675,66 @@ export function ResourceDetailContent({
     enabled: enabled && liveResourceVersion !== undefined,
   });
 
-  // Read live health from tree cache (kept current by watchResourceTree stream)
+  // Read live node from tree cache (kept current by watchResourceTree stream)
   const { data: treeData } = useQuery({
     queryKey: client.queryKeys.resourceTree(appNamespace, appName),
     queryFn: () => client.getResourceTree(appName, appNamespace),
     enabled: false,
   });
 
-  const liveHealth = useMemo(() => {
-    const node = treeData?.nodes?.find(
-      (n) =>
-        n.kind === resource.kind &&
-        n.name === resource.name &&
-        (n.namespace ?? "") === (resource.namespace ?? "") &&
-        (n.group ?? "") === (resource.group ?? ""),
+  const liveTreeNode = useMemo(
+    () =>
+      treeData?.nodes?.find(
+        (n) =>
+          n.kind === resource.kind &&
+          n.name === resource.name &&
+          (n.namespace ?? "") === (resource.namespace ?? "") &&
+          (n.group ?? "") === (resource.group ?? ""),
+      ),
+    [treeData, resource],
+  );
+
+  const liveHealth = liveTreeNode?.health ?? resource.health;
+  const treeNodeRv = liveTreeNode?.resourceVersion;
+
+  // Read live sync status from app cache (kept current by watchApplication stream)
+  const liveSyncStatus = useMemo(() => {
+    const r = appData?.status?.resources?.find(
+      (r) =>
+        r.kind === resource.kind &&
+        r.name === resource.name &&
+        (r.namespace ?? "") === (resource.namespace ?? "") &&
+        (r.group ?? "") === (resource.group ?? ""),
     );
-    return node?.health ?? resource.health;
-  }, [treeData, resource]);
+    return r?.status ?? resource.syncStatus;
+  }, [appData, resource]);
+
+  const { data: managed } = useQuery({
+    queryKey: [
+      ...client.queryKeys.managedResource(
+        appNamespace,
+        appName,
+        resource.group,
+        resource.kind,
+        resource.namespace,
+        resource.name,
+      ),
+      treeNodeRv,
+    ],
+    queryFn: () =>
+      client.getManagedResource(
+        appName,
+        appNamespace,
+        resource.group,
+        resource.kind,
+        resource.namespace,
+        resource.name,
+      ),
+    enabled,
+  });
 
   const health = getHealth(liveHealth?.status ?? "Unknown");
-  const sync = resource.syncStatus ? getSync(resource.syncStatus) : null;
+  const sync = liveSyncStatus ? getSync(liveSyncStatus) : null;
   const hasDesired = !!managed?.targetState;
   const hasDiff =
     !!managed?.normalizedLiveState &&
@@ -1580,7 +1746,7 @@ export function ResourceDetailContent({
     { id: "summary", label: "SUMMARY" },
     { id: "live", label: "LIVE" },
     ...(hasDesired ? [{ id: "desired" as TabId, label: "DESIRED" }] : []),
-    ...(hasDiff ? [{ id: "diff" as TabId, label: "DIFF" }] : []),
+    ...(hasDesired ? [{ id: "diff" as TabId, label: "DIFF" }] : []),
     ...(hasLogs ? [{ id: "logs" as TabId, label: "LOGS" }] : []),
   ];
 
@@ -1662,7 +1828,7 @@ export function ResourceDetailContent({
               >
                 <Ionicons name={sync.icon} size={11} color={sync.color} />
                 <Text style={[styles.pillText, { color: sync.color }]}>
-                  {resource.syncStatus}
+                  {liveSyncStatus}
                 </Text>
               </View>
             )}
@@ -1738,6 +1904,15 @@ export function ResourceDetailContent({
             appName={appName}
             appNamespace={appNamespace}
           />
+        ) : activeTab === "live" ? (
+          <LiveContent
+            state={liveState}
+            isLoading={liveLoading}
+            error={liveError instanceof Error ? liveError : null}
+            appName={appName}
+            appNamespace={appNamespace}
+            resource={resource}
+          />
         ) : (
           <ScrollView
             style={styles.contentScroll}
@@ -1745,14 +1920,6 @@ export function ResourceDetailContent({
             showsVerticalScrollIndicator={false}
           >
             {activeTab === "summary" && <SummaryContent resource={resource} />}
-
-            {activeTab === "live" && (
-              <LiveContent
-                state={liveState}
-                isLoading={liveLoading}
-                error={liveError instanceof Error ? liveError : null}
-              />
-            )}
 
             {activeTab === "desired" &&
               (hasDesired ? (
@@ -1765,7 +1932,7 @@ export function ResourceDetailContent({
               (hasDiff ? (
                 <DiffContent managed={managed!} />
               ) : (
-                <StateBlock message="No diff available" />
+                <StateBlock message="Resource is in sync — no differences" />
               ))}
           </ScrollView>
         )}
@@ -2091,7 +2258,96 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // Managed fields toggle
+  // Live tab
+  liveRoot: {
+    flex: 1,
+    backgroundColor: "#1C2140",
+  },
+  liveScroll: {
+    flex: 1,
+  },
+
+  // Live tab toolbar
+  liveToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hairline,
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  mgdToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  editBtnInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  editBtnInlineText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.orange,
+  },
+  editBtnGroup: {
+    flexDirection: "row",
+    gap: 8,
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  editCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  editCancelText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: colors.muted,
+  },
+  editSaveBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 7,
+    backgroundColor: colors.orange,
+    minWidth: 60,
+    alignItems: "center",
+  },
+  editSaveText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  saveErrorRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255,107,107,0.10)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,107,107,0.25)",
+  },
+  saveErrorText: {
+    fontSize: 12,
+    color: colors.danger,
+    lineHeight: 17,
+  },
+  yamlEditInput: {
+    backgroundColor: "#0d1119",
+    padding: 14,
+    fontFamily: MONO,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#ABB2BF",
+    minHeight: 300,
+  },
+
+  // Managed fields toggle (kept for reference, replaced by liveToolbar)
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",

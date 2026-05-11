@@ -27,6 +27,7 @@
     "expo-status-bar": "~55.0.5",
     "expo-web-browser": "~55.0.14",
     "js-yaml": "^4.1.1",
+    "json-merge-patch": "^1.0.2",
     "react": "19.2.0",
     "react-dom": "^19.2.0",
     "react-native": "0.83.9",
@@ -39,6 +40,7 @@
   "devDependencies": {
     "@types/diff": "^8.0.0",
     "@types/js-yaml": "^4.0.9",
+    "@types/json-merge-patch": "^1.0.0",
     "@types/react": "~19.2.2",
     "eslint": "^9.39.4",
     "eslint-config-expo": "^55.0.0",
