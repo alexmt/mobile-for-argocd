@@ -1,10 +1,10 @@
 # ArgoCD Mobile
 
-A native iOS app for monitoring and managing [Argo CD](https://argo-cd.readthedocs.io/) deployments from your phone.
+A native iOS and Android app for monitoring and managing [Argo CD](https://argo-cd.readthedocs.io/) deployments from your phone.
 
 <img src="docs/screenshot.png" width="320" alt="Apps list" />
 
-[Download on the App Store](https://apps.apple.com/app/id6766354032)
+[Download on the App Store](https://apps.apple.com/app/id6766354032) · [Get it on Google Play](https://play.google.com/store/apps/details?id=io.akuity.argocd.mobile)
 
 ## Features
 
@@ -60,4 +60,4 @@ yarn install
 npx expo start
 ```
 
-Requires Expo Go or a development build on iOS.
+Requires Expo Go or a development build on iOS or Android.
