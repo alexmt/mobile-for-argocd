@@ -20,7 +20,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import * as jsYaml from "js-yaml";
 import * as jsonMergePatch from "json-merge-patch";
 import { diffLines as computeDiff } from "diff";
@@ -1649,7 +1653,8 @@ export function ResourceDetailContent({
     liveState as { metadata?: { resourceVersion?: string } } | undefined
   )?.metadata?.resourceVersion;
 
-  const { data: actions } = useQuery({
+  const actionsEnabled = enabled && liveResourceVersion !== undefined;
+  const { data: actions, isPending: actionsPending } = useQuery({
     queryKey: [
       ...client.queryKeys.resourceActions(
         appNamespace,
@@ -1672,7 +1677,8 @@ export function ResourceDetailContent({
         resource.namespace,
         resource.name,
       ),
-    enabled: enabled && liveResourceVersion !== undefined,
+    enabled: actionsEnabled,
+    placeholderData: keepPreviousData,
   });
 
   // Read live node from tree cache (kept current by watchResourceTree stream)
@@ -1836,41 +1842,51 @@ export function ResourceDetailContent({
         </View>
 
         {/* Action chips */}
-        {!!actions?.length && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.actionChipsBar}
-            contentContainerStyle={styles.actionChipsInner}
-          >
-            {actions.map((action) => (
-              <TouchableOpacity
-                key={action.name}
-                disabled={!!action.disabled}
-                onPress={() => setConfirmAction(action)}
-                style={[
-                  styles.actionChip,
-                  !!action.disabled && styles.actionChipDisabled,
-                ]}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="play-circle-outline"
-                  size={13}
-                  color={action.disabled ? colors.faint : colors.orange}
-                />
-                <Text
+        {liveLoading ||
+        (actionsEnabled && actionsPending) ||
+        !!actions?.length ? (
+          liveLoading || (actionsEnabled && actionsPending) ? (
+            <View style={styles.actionChipsBar}>
+              <View style={styles.actionChipsInner}>
+                <ActivityIndicator size="small" color={colors.muted} />
+              </View>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.actionChipsBar}
+              contentContainerStyle={styles.actionChipsInner}
+            >
+              {actions!.map((action) => (
+                <TouchableOpacity
+                  key={action.name}
+                  disabled={!!action.disabled}
+                  onPress={() => setConfirmAction(action)}
                   style={[
-                    styles.actionChipText,
-                    !!action.disabled && styles.actionChipTextDisabled,
+                    styles.actionChip,
+                    !!action.disabled && styles.actionChipDisabled,
                   ]}
+                  activeOpacity={0.7}
                 >
-                  {action.displayName || action.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
+                  <Ionicons
+                    name="play-circle-outline"
+                    size={13}
+                    color={action.disabled ? colors.faint : colors.orange}
+                  />
+                  <Text
+                    style={[
+                      styles.actionChipText,
+                      !!action.disabled && styles.actionChipTextDisabled,
+                    ]}
+                  >
+                    {action.displayName || action.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )
+        ) : null}
 
         {/* Tab bar */}
         <ScrollView
@@ -2126,9 +2142,11 @@ const styles = StyleSheet.create({
   },
   actionChipsInner: {
     flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 8,
     gap: 8,
+    minHeight: 44,
   },
   actionChip: {
     flexDirection: "row",
